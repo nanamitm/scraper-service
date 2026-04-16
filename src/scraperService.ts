@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { ScrapedTarget, ScrapeResult } from "./types";
 
 const MAX_RESULTS_PER_TARGET = 60;
+const MAX_HTML_BYTES = 512 * 1024; // 512KB
 
 export class ScraperService {
   private targets: Map<string, ScrapedTarget> = new Map();
@@ -112,6 +113,9 @@ export class ScraperService {
       const response = await axios.get<string>(target.url, {
         responseType: "text",
         timeout: 15000,
+        maxRedirects: 5,
+        maxContentLength: 10 * 1024 * 1024, // 10MB
+        maxBodyLength: 10 * 1024 * 1024,     // 10MB
         headers: {
           "User-Agent":
             "Mozilla/5.0 (compatible; ScraperService/1.0; +https://github.com/scraper-service)",
@@ -119,12 +123,20 @@ export class ScraperService {
         validateStatus: () => true,
       });
 
+      const rawHtml: string = response.data;
+      const truncated = Buffer.byteLength(rawHtml, "utf-8") > MAX_HTML_BYTES;
+      const html = truncated
+        ? Buffer.from(rawHtml, "utf-8").slice(0, MAX_HTML_BYTES).toString("utf-8") +
+          "\n<!-- [scraper-service] HTML truncated: exceeded 512KB -->"
+        : rawHtml;
+
       result = {
         url: target.url,
-        html: response.data,
+        html,
         statusCode: response.status,
         scrapedAt: new Date().toISOString(),
         success: response.status >= 200 && response.status < 400,
+        ...(truncated && { truncated: true }),
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

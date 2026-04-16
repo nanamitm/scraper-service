@@ -5,6 +5,7 @@ export interface ScrapeResult {
   scrapedAt: string;
   success: boolean;
   error?: string;
+  truncated?: boolean; // HTMLが512KBを超えて切り詰められた場合にtrue
 }
 
 export interface ScrapedTarget {
