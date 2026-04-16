@@ -107,6 +107,14 @@ function show(name, btn) {
   if (btn) btn.classList.add('active');
 }
 
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function render(id, status, data) {
   const box = document.getElementById('res-' + id);
   box.classList.remove('hidden');
@@ -116,7 +124,7 @@ function render(id, status, data) {
       '<span class="status ' + (ok ? 's-ok' : 's-err') + '">' + status + '</span>' +
       '<span>' + new Date().toLocaleTimeString() + '</span>' +
     '</div>' +
-    '<div class="res-body">' + JSON.stringify(data, null, 2) + '</div>';
+    '<div class="res-body">' + escapeHtml(JSON.stringify(data, null, 2)) + '</div>';
 }
 
 async function req(id, method, path, body) {

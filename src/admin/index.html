@@ -282,6 +282,14 @@ function toast(msg, isErr) {
   setTimeout(function() { el.className = 'toast'; }, 2500);
 }
 
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function renderRes(id, status, data) {
   var box = document.getElementById('res-' + id);
   if (!box) return;
@@ -292,7 +300,7 @@ function renderRes(id, status, data) {
       '<span class="status-badge ' + (ok ? 's-ok' : 's-err') + '">' + status + '</span>' +
       '<span>' + new Date().toLocaleTimeString() + '</span>' +
     '</div>' +
-    '<div class="res-body">' + JSON.stringify(data, null, 2) + '</div>';
+    '<div class="res-body">' + escapeHtml(JSON.stringify(data, null, 2)) + '</div>';
 }
 
 async function apiReq(resId, method, path, body) {
@@ -537,7 +545,7 @@ async function saveSettings(patch) {
     box.innerHTML =
       '<div class="res-meta"><span class="status-badge ' + (ok ? 's-ok' : 's-err') + '">' + r.status + '</span>' +
       '<span>' + new Date().toLocaleTimeString() + '</span></div>' +
-      '<div class="res-body">' + JSON.stringify(data, null, 2) + '</div>';
+      '<div class="res-body">' + escapeHtml(JSON.stringify(data, null, 2)) + '</div>';
     if (data.success) {
       toast('設定を保存しました');
       renderDefaultUrls(data.data.defaultUrls);
