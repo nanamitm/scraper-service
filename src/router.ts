@@ -1,8 +1,77 @@
 import { Router, Request, Response } from "express";
 import cron from "node-cron";
+import dns from "dns/promises";
 import { ScraperService } from "./scraperService";
 import { SettingsStore } from "./settingsStore";
 import { ApiResponse, ScrapeResult } from "./types";
+
+// ── SSRF / DNSリバインディング対策 ───────────────────────
+
+const PRIVATE_IP_PATTERNS = [
+  /^localhost$/i,
+  /^127\./,
+  /^0\.0\.0\.0$/,
+  /^::1$/,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,   // link-local / クラウドメタデータ (AWS等)
+  /^[fFcCdD]{2}/,  // IPv6 ULA
+];
+
+/** IPアドレスがプライベート/予約済みアドレスかチェック */
+function isPrivateIp(ip: string): boolean {
+  return PRIVATE_IP_PATTERNS.some((pattern) => pattern.test(ip));
+}
+
+/**
+ * URLのスキームとホスト名を静的に検証する（SSRF対策）。
+ * 問題があればエラー文字列を返し、問題なければ null を返す。
+ */
+function validateUrl(rawUrl: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return "Invalid URL format";
+  }
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    return "Only http and https URLs are allowed";
+  }
+  if (isPrivateIp(parsed.hostname)) {
+    return "URL points to a private or reserved address";
+  }
+  return null;
+}
+
+/**
+ * DNS解決後のIPがプライベートアドレスでないか検証する（DNSリバインディング対策）。
+ * 問題があればエラー文字列を返し、問題なければ null を返す。
+ */
+async function validateUrlDns(rawUrl: string): Promise<string | null> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return "Invalid URL format";
+  }
+  const hostname = parsed.hostname;
+  // IPアドレスが直接指定されている場合は静的チェック済みのためスキップ
+  if (/^[\d.]+$/.test(hostname) || hostname.includes(":")) {
+    return null;
+  }
+  try {
+    const addresses = await dns.resolve(hostname);
+    for (const addr of addresses) {
+      if (isPrivateIp(addr)) {
+        return `URL resolves to a private address (${addr}): DNS rebinding blocked`;
+      }
+    }
+  } catch {
+    return `Failed to resolve hostname: ${hostname}`;
+  }
+  return null;
+}
 
 /**
  * 公開API用ルーター（port 3000）
@@ -108,7 +177,7 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
   });
 
   // 設定更新
-  router.put("/settings", (req: Request, res: Response) => {
+  router.put("/settings", async (req: Request, res: Response) => {
     const { defaultUrls, scrapeInterval } = req.body as {
       defaultUrls?: string[];
       scrapeInterval?: string;
@@ -121,10 +190,17 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
         res.status(400).json(body);
         return;
       }
-      // URL形式チェック
+      // URL形式・SSRF・DNSリバインディングチェック
       for (const url of defaultUrls) {
-        try { new URL(url); } catch {
-          const body: ApiResponse<never> = { success: false, error: `Invalid URL: ${url}` };
+        const urlError = validateUrl(url);
+        if (urlError) {
+          const body: ApiResponse<never> = { success: false, error: urlError };
+          res.status(400).json(body);
+          return;
+        }
+        const dnsError = await validateUrlDns(url);
+        if (dnsError) {
+          const body: ApiResponse<never> = { success: false, error: dnsError };
           res.status(400).json(body);
           return;
         }
@@ -265,7 +341,7 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
   });
 
   // ターゲット登録
-  router.post("/targets", (req: Request, res: Response) => {
+  router.post("/targets", async (req: Request, res: Response) => {
     const { url } = req.body as { url?: string };
     if (!url || typeof url !== "string") {
       const body: ApiResponse<never> = {
@@ -276,13 +352,18 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
       return;
     }
 
-    try {
-      new URL(url);
-    } catch {
-      const body: ApiResponse<never> = {
-        success: false,
-        error: "Invalid URL format",
-      };
+    // 静的チェック（スキーム・プライベートIP）
+    const urlError = validateUrl(url);
+    if (urlError) {
+      const body: ApiResponse<never> = { success: false, error: urlError };
+      res.status(400).json(body);
+      return;
+    }
+
+    // DNSリバインディングチェック
+    const dnsError = await validateUrlDns(url);
+    if (dnsError) {
+      const body: ApiResponse<never> = { success: false, error: dnsError };
       res.status(400).json(body);
       return;
     }
