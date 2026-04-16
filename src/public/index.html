@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scraper Service - API Test</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f3; color: #1a1a18; min-height: 100vh; }
+    header { background: #fff; border-bottom: 0.5px solid #ddd; padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    header .left { display: flex; align-items: center; gap: 10px; }
+    header h1 { font-size: 16px; font-weight: 500; }
+    header .badge { font-size: 11px; background: #e6f1fb; color: #185fa5; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
+    header .port { font-size: 12px; color: #aaa; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 56px); }
+    .sidebar { background: #fff; border-right: 0.5px solid #ddd; padding: 1rem; display: flex; flex-direction: column; gap: 2px; }
+    .sidebar-label { font-size: 11px; color: #bbb; text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 8px 4px; }
+    .nav-btn { display: block; width: 100%; text-align: left; background: none; border: none; cursor: pointer; padding: 7px 10px; border-radius: 6px; font-size: 13px; color: #555; line-height: 1.4; }
+    .nav-btn:hover { background: #f5f5f3; }
+    .nav-btn.active { background: #e6f1fb; color: #185fa5; font-weight: 500; }
+    .method { font-size: 10px; font-weight: 600; margin-right: 5px; }
+    .m-get { color: #185fa5; }
+    .main { padding: 2rem; max-width: 820px; }
+    .card { background: #fff; border: 0.5px solid #ddd; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+    .card-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .card-desc { font-size: 13px; color: #999; margin-bottom: 1rem; }
+    .field { margin-bottom: 10px; }
+    label { display: block; font-size: 12px; color: #777; margin-bottom: 3px; }
+    input { width: 100%; padding: 8px 10px; border: 0.5px solid #ccc; border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff; color: inherit; outline: none; }
+    input:focus { border-color: #185fa5; box-shadow: 0 0 0 2px rgba(24,95,165,0.12); }
+    .btn { padding: 8px 16px; border-radius: 6px; border: 0.5px solid #ccc; background: #fff; cursor: pointer; font-size: 13px; font-family: inherit; color: inherit; }
+    .btn:hover { background: #f5f5f3; }
+    .btn-primary { background: #185fa5; color: #fff; border-color: #185fa5; }
+    .btn-primary:hover { background: #0c447c; }
+    .res-box { margin-top: 1rem; }
+    .res-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; color: #aaa; }
+    .status { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+    .s-ok { background: #eaf3de; color: #3b6d11; }
+    .s-err { background: #fcebeb; color: #a32d2d; }
+    .res-body { background: #f5f5f3; border: 0.5px solid #e0e0e0; border-radius: 8px; padding: 1rem; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 420px; overflow-y: auto; }
+    .hidden { display: none; }
+    .tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+    .tag-get { background: #e6f1fb; color: #185fa5; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="left">
+    <h1>Scraper Service</h1>
+    <span class="badge">Public API</span>
+  </div>
+  <span class="port">port 3000</span>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-label">General</div>
+    <button class="nav-btn active" onclick="show('health', this)"><span class="method m-get">GET</span>/api/health</button>
+    <div class="sidebar-label">結果取得</div>
+    <button class="nav-btn" onclick="show('defaults-latest', this)"><span class="method m-get">GET</span>/api/defaults/latest</button>
+    <button class="nav-btn" onclick="show('latest', this)"><span class="method m-get">GET</span>/api/latest?url=</button>
+  </nav>
+
+  <main class="main">
+
+    <div id="pane-health" class="pane">
+      <div class="card">
+        <div class="card-title"><span class="tag tag-get">GET</span>/api/health</div>
+        <div class="card-desc">サービスの稼働状態を確認します。</div>
+        <button class="btn btn-primary" onclick="req('health','GET','/api/health')">送信</button>
+        <div id="res-health" class="res-box hidden"></div>
+      </div>
+    </div>
+
+    <div id="pane-defaults-latest" class="pane hidden">
+      <div class="card">
+        <div class="card-title"><span class="tag tag-get">GET</span>/api/defaults/latest</div>
+        <div class="card-desc">DEFAULT_URLS に設定した全URLの最新スクレイピング結果をまとめて返します。</div>
+        <button class="btn btn-primary" onclick="req('defaults-latest','GET','/api/defaults/latest')">送信</button>
+        <div id="res-defaults-latest" class="res-box hidden"></div>
+      </div>
+    </div>
+
+    <div id="pane-latest" class="pane hidden">
+      <div class="card">
+        <div class="card-title"><span class="tag tag-get">GET</span>/api/latest?url=</div>
+        <div class="card-desc">URLを指定して最新のスクレイピング結果を取得します（IDなし）。</div>
+        <div class="field">
+          <label>url（必須）</label>
+          <input id="latest-url" type="text" placeholder="https://example.com" />
+        </div>
+        <button class="btn btn-primary" onclick="reqLatest()">送信</button>
+        <div id="res-latest" class="res-box hidden"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function v(id) { return document.getElementById(id).value.trim(); }
+
+function show(name, btn) {
+  document.querySelectorAll('.pane').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('pane-' + name).classList.remove('hidden');
+  if (btn) btn.classList.add('active');
+}
+
+function render(id, status, data) {
+  const box = document.getElementById('res-' + id);
+  box.classList.remove('hidden');
+  const ok = status >= 200 && status < 400;
+  box.innerHTML =
+    '<div class="res-meta">' +
+      '<span class="status ' + (ok ? 's-ok' : 's-err') + '">' + status + '</span>' +
+      '<span>' + new Date().toLocaleTimeString() + '</span>' +
+    '</div>' +
+    '<div class="res-body">' + JSON.stringify(data, null, 2) + '</div>';
+}
+
+async function req(id, method, path, body) {
+  try {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(path, opts);
+    render(id, r.status, await r.json());
+  } catch(e) {
+    render(id, 0, { error: e.message });
+  }
+}
+
+async function reqLatest() {
+  const url = v('latest-url');
+  if (!url) { alert('URLを入力してください'); return; }
+  await req('latest', 'GET', '/api/latest?url=' + encodeURIComponent(url));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scraper Service - 管理画面</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f3; color: #1a1a18; min-height: 100vh; }
+    header { background: #1e1e2e; color: #fff; padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    header .left { display: flex; align-items: center; gap: 10px; }
+    header h1 { font-size: 16px; font-weight: 500; }
+    header .badge { font-size: 11px; background: #e03e3e; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+    header .port { font-size: 12px; color: #888; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 56px); }
+    .sidebar { background: #fff; border-right: 0.5px solid #ddd; padding: 1rem; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+    .sidebar-label { font-size: 11px; color: #bbb; text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 8px 4px; }
+    .nav-btn { display: block; width: 100%; text-align: left; background: none; border: none; cursor: pointer; padding: 7px 10px; border-radius: 6px; font-size: 13px; color: #555; line-height: 1.4; }
+    .nav-btn:hover { background: #f5f5f3; }
+    .nav-btn.active { background: #1e1e2e14; color: #1e1e2e; font-weight: 500; }
+    .method { font-size: 10px; font-weight: 600; margin-right: 5px; }
+    .m-get { color: #185fa5; } .m-post { color: #3b6d11; } .m-delete { color: #a32d2d; }
+    .main { padding: 2rem; max-width: 900px; overflow-y: auto; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat { background: #fff; border: 0.5px solid #ddd; border-radius: 10px; padding: 1rem 1.25rem; }
+    .stat-num { font-size: 28px; font-weight: 600; }
+    .stat-label { font-size: 12px; color: #999; margin-top: 2px; }
+    .card { background: #fff; border: 0.5px solid #ddd; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .card-title { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+    .card-desc { font-size: 13px; color: #999; margin-bottom: 1rem; }
+    .field { margin-bottom: 10px; }
+    label { display: block; font-size: 12px; color: #777; margin-bottom: 3px; }
+    input { width: 100%; padding: 8px 10px; border: 0.5px solid #ccc; border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff; color: inherit; outline: none; }
+    input:focus { border-color: #1e1e2e; box-shadow: 0 0 0 2px rgba(30,30,46,0.1); }
+    .row { display: flex; gap: 8px; }
+    .row input { flex: 1; }
+    .btn { padding: 8px 14px; border-radius: 6px; border: 0.5px solid #ccc; background: #fff; cursor: pointer; font-size: 13px; font-family: inherit; color: inherit; white-space: nowrap; }
+    .btn:hover { background: #f5f5f3; }
+    .btn-primary { background: #1e1e2e; color: #fff; border-color: #1e1e2e; }
+    .btn-primary:hover { background: #2e2e4e; }
+    .btn-danger { background: #e03e3e; color: #fff; border-color: #e03e3e; }
+    .btn-danger:hover { background: #b52e2e; }
+    .btn-sm { font-size: 12px; padding: 5px 10px; }
+    .res-box { margin-top: 1rem; }
+    .res-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; color: #aaa; }
+    .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+    .s-ok { background: #eaf3de; color: #3b6d11; }
+    .s-err { background: #fcebeb; color: #a32d2d; }
+    .res-body { background: #f5f5f3; border: 0.5px solid #e0e0e0; border-radius: 8px; padding: 1rem; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; color: #999; font-weight: 500; font-size: 11px; }
+    td { padding: 10px; border-bottom: 0.5px solid #f0f0f0; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+    .url-cell { font-family: monospace; font-size: 12px; max-width: 260px; word-break: break-all; }
+    .id-cell { font-family: monospace; font-size: 11px; color: #bbb; }
+    .tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+    .tag-get { background: #e6f1fb; color: #185fa5; }
+    .tag-post { background: #eaf3de; color: #3b6d11; }
+    .tag-del { background: #fcebeb; color: #a32d2d; }
+    .tag-default { background: #fff3cd; color: #856404; border: 0.5px solid #ffc107; margin-right: 4px; }
+    .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+    .dot-ok { background: #3b6d11; } .dot-err { background: #e03e3e; } .dot-none { background: #ccc; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .empty { text-align: center; padding: 2rem; color: #bbb; font-size: 13px; }
+    .hidden { display: none; }
+    .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #1e1e2e; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 100; }
+    .toast.show { opacity: 1; }
+    .toast.err { background: #e03e3e; }
+    .url-item { display: flex; align-items: center; gap: 8px; background: #f5f5f3; border-radius: 6px; padding: 7px 10px; margin-bottom: 6px; }
+    .url-item span { flex: 1; font-family: monospace; font-size: 13px; word-break: break-all; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="left">
+    <h1>Scraper Service</h1>
+    <span class="badge">管理画面</span>
+  </div>
+  <span class="port">port 3001</span>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-label">ダッシュボード</div>
+    <button class="nav-btn active" data-pane="dashboard" onclick="showPane('dashboard', this)">概要</button>
+    <div class="sidebar-label">設定</div>
+    <button class="nav-btn" data-pane="settings" onclick="showPane('settings', this)">デフォルトURL・更新間隔</button>
+    <div class="sidebar-label">ターゲット管理</div>
+    <button class="nav-btn" data-pane="targets-list" onclick="showPane('targets-list', this)"><span class="method m-get">GET</span>/api/targets</button>
+    <button class="nav-btn" data-pane="targets-add" onclick="showPane('targets-add', this)"><span class="method m-post">POST</span>/api/targets</button>
+    <button class="nav-btn" data-pane="targets-delete" onclick="showPane('targets-delete', this)"><span class="method m-delete">DELETE</span>/api/targets/:id</button>
+    <button class="nav-btn" data-pane="scrape-now" onclick="showPane('scrape-now', this)"><span class="method m-post">POST</span>/api/targets/:id/scrape</button>
+    <button class="nav-btn" data-pane="history" onclick="showPane('history', this)"><span class="method m-get">GET</span>/api/targets/:id/history</button>
+    <div class="sidebar-label">結果取得</div>
+    <button class="nav-btn" data-pane="defaults-latest" onclick="showPane('defaults-latest', this)"><span class="method m-get">GET</span>/api/defaults/latest</button>
+    <button class="nav-btn" data-pane="latest" onclick="showPane('latest', this)"><span class="method m-get">GET</span>/api/latest?url=</button>
+    <div class="sidebar-label">General</div>
+    <button class="nav-btn" data-pane="health" onclick="showPane('health', this)"><span class="method m-get">GET</span>/api/health</button>
+  </nav>
+
+  <main class="main">
+
+    <!-- ダッシュボード -->
+    <div id="pane-dashboard" class="pane">
+      <div class="stats">
+        <div class="stat"><div class="stat-num" id="stat-total">-</div><div class="stat-label">登録済みURL</div></div>
+        <div class="stat"><div class="stat-num" id="stat-ok" style="color:#3b6d11">-</div><div class="stat-label">正常取得</div></div>
+        <div class="stat"><div class="stat-num" id="stat-err" style="color:#e03e3e">-</div><div class="stat-label">エラー</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">登録済みターゲット</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span id="countdown" style="font-size:12px;color:#bbb"></span>
+            <button class="btn btn-sm" onclick="resetTimer()">今すぐ更新</button>
+          </div>
+        </div>
+        <div id="dashboard-wrap"><div class="empty">読み込み中...</div></div>
+      </div>
+    </div>
+
+    <!-- 設定 -->
+    <div id="pane-settings" class="pane hidden">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px">デフォルトURL</div>
+        <div class="card-desc">起動時に自動登録されるURLを管理します。変更は settings.json に保存されます。</div>
+        <div id="default-urls-list" style="margin-bottom:10px"></div>
+        <div class="row">
+          <input id="new-default-url" type="text" placeholder="https://example.com" onkeydown="if(event.key==='Enter')addDefaultUrl()" />
+          <button class="btn btn-primary" onclick="addDefaultUrl()">追加</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px">スクレイピング間隔</div>
+        <div class="card-desc">cron式で指定します。保存後すぐにcronが再起動されます。</div>
+        <div class="field">
+          <div class="row">
+            <input id="interval-input" type="text" placeholder="*/30 * * * * *" style="font-family:monospace" />
+            <button class="btn btn-primary" onclick="saveInterval()">保存</button>
+          </div>
+        </div>
+        <div style="font-size:12px;color:#999;line-height:2">
+          <code style="background:#f5f5f3;padding:1px 5px;border-radius:3px">*/10 * * * * *</code> 10秒ごと　
+          <code style="background:#f5f5f3;padding:1px 5px;border-radius:3px">*/30 * * * * *</code> 30秒ごと　
+          <code style="background:#f5f5f3;padding:1px 5px;border-radius:3px">* * * * *</code> 1分ごと　
+          <code style="background:#f5f5f3;padding:1px 5px;border-radius:3px">*/5 * * * *</code> 5分ごと
+        </div>
+        <div id="res-settings" class="res-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- ターゲット一覧 -->
+    <div id="pane-targets-list" class="pane hidden">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px"><span class="tag tag-get">GET</span>/api/targets</div>
+        <div class="card-desc">登録済みURLの一覧を返します。?url= で絞り込んでIDを確認できます。</div>
+        <div class="field">
+          <label>url（任意・絞り込み）</label>
+          <input id="list-url" type="text" placeholder="https://example.com" />
+        </div>
+        <button class="btn btn-primary" onclick="reqTargetsList()">送信</button>
+        <div id="res-targets-list" class="res-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- ターゲット登録 -->
+    <div id="pane-targets-add" class="pane hidden">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px"><span class="tag tag-post">POST</span>/api/targets</div>
+        <div class="card-desc">新しいURLを登録します。登録後すぐにスクレイピングが実行されます。</div>
+        <div class="field">
+          <label>url（必須）</label>
+          <div class="row">
+            <input id="add-url" type="text" placeholder="https://example.com" onkeydown="if(event.key==='Enter')reqAdd()" />
+            <button class="btn btn-primary" onclick="reqAdd()">登録</button>
+          </div>
+        </div>
+        <div id="res-targets-add" class="res-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- ターゲット削除 -->
+    <div id="pane-targets-delete" class="pane hidden">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px"><span class="tag tag-del">DELETE</span>/api/targets/:id</div>
+        <div class="card-desc">指定したターゲットを削除します。</div>
+        <div class="field">
+          <label>id（必須）</label>
+          <input id="delete-id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+        </div>
+        <button class="btn btn-danger" onclick="reqDelete()">削除</button>
+        <div id="res-targets-delete" class="res-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- 即時スクレイピング -->
+    <div id="pane-scrape-now" class="pane hidden">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px"><span class="tag tag-post">POST</span>/api/targets/:id/scrape</div>
+        <div class="card-desc">cronを待たずに今すぐスクレイピングを実行します。</div>
+        <div class="field">
+          <label>id（必須）</label>
+          <input id="scrape-id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+        </div>
+        <button class="btn btn-primary" onclick="reqScrapeNow()">今すぐ実行</button>
+        <div id="res-scrape-now" class="res-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- 履歴 -->
+    <div id="pane-history" class="pane hidden">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px"><span class="tag tag-get">GET</span>/api/targets/:id/history</div>
+        <div class="card-desc">スクレイピング履歴を新しい順に返します。</div>
+        <div class="field">
+          <label>id（必須）</label>
+          <input id="history-id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+        </div>
+        <div class="field">
+          <label>limit（最大60、デフォルト10）</label>
+          <input id="history-limit" type="number" value="10" min="1" max="60" />
+        </div>
+        <button class="btn btn-primary" onclick="reqHistory()">送信</button>
+        <div id="res-history" class="res-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- defaults/latest -->
+    <div id="pane-defaults-latest" class="pane hidden">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px"><span class="tag tag-get">GET</span>/api/defaults/latest</div>
+        <div class="card-desc">DEFAULT_URLSに設定した全URLの最新スクレイピング結果をまとめて返します。</div>
+        <button class="btn btn-primary" onclick="apiReq('defaults-latest','GET','/api/defaults/latest')">送信</button>
+        <div id="res-defaults-latest" class="res-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- latest?url= -->
+    <div id="pane-latest" class="pane hidden">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px"><span class="tag tag-get">GET</span>/api/latest?url=</div>
+        <div class="card-desc">URLを指定して最新のスクレイピング結果を取得します（IDなし）。</div>
+        <div class="field">
+          <label>url（必須）</label>
+          <input id="latest-url" type="text" placeholder="https://example.com" />
+        </div>
+        <button class="btn btn-primary" onclick="reqLatest()">送信</button>
+        <div id="res-latest" class="res-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- health -->
+    <div id="pane-health" class="pane hidden">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px"><span class="tag tag-get">GET</span>/api/health</div>
+        <div class="card-desc">サービスの稼働状態を確認します。</div>
+        <button class="btn btn-primary" onclick="apiReq('health','GET','/api/health')">送信</button>
+        <div id="res-health" class="res-box hidden"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ── ユーティリティ ────────────────────────────────────
+
+function v(id) {
+  var el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
+function toast(msg, isErr) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (isErr ? ' err' : '');
+  setTimeout(function() { el.className = 'toast'; }, 2500);
+}
+
+function renderRes(id, status, data) {
+  var box = document.getElementById('res-' + id);
+  if (!box) return;
+  box.classList.remove('hidden');
+  var ok = status >= 200 && status < 400;
+  box.innerHTML =
+    '<div class="res-meta">' +
+      '<span class="status-badge ' + (ok ? 's-ok' : 's-err') + '">' + status + '</span>' +
+      '<span>' + new Date().toLocaleTimeString() + '</span>' +
+    '</div>' +
+    '<div class="res-body">' + JSON.stringify(data, null, 2) + '</div>';
+}
+
+async function apiReq(resId, method, path, body) {
+  try {
+    var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+    if (body) opts.body = JSON.stringify(body);
+    var r = await fetch(path, opts);
+    var data = await r.json();
+    renderRes(resId, r.status, data);
+    return { ok: r.ok, status: r.status, data: data };
+  } catch(e) {
+    renderRes(resId, 0, { error: e.message });
+    return { ok: false, status: 0, data: null };
+  }
+}
+
+// ── ナビゲーション ────────────────────────────────────
+
+function showPane(name, btn) {
+  document.querySelectorAll('.pane').forEach(function(p) { p.classList.add('hidden'); });
+  document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
+  var pane = document.getElementById('pane-' + name);
+  if (pane) pane.classList.remove('hidden');
+  if (btn) btn.classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'settings') loadSettings();
+}
+
+function fillAndShowPane(pane, inputId, value) {
+  var btn = document.querySelector('[data-pane="' + pane + '"]');
+  showPane(pane, btn);
+  var el = document.getElementById(inputId);
+  if (el) el.value = value;
+}
+
+// ── ダッシュボード ────────────────────────────────────
+
+async function loadDashboard() {
+  var wrap = document.getElementById('dashboard-wrap');
+  try {
+    var r = await fetch('/api/targets');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var data = await r.json();
+
+    if (!data.success || !data.data || data.data.length === 0) {
+      wrap.innerHTML = '<div class="empty">登録済みターゲットがありません</div>';
+      document.getElementById('stat-total').textContent = '0';
+      document.getElementById('stat-ok').textContent = '0';
+      document.getElementById('stat-err').textContent = '0';
+      return;
+    }
+
+    var targets = data.data;
+    document.getElementById('stat-total').textContent = targets.length;
+    document.getElementById('stat-ok').textContent = targets.filter(function(t) { return t.resultCount > 0; }).length;
+    document.getElementById('stat-err').textContent = targets.filter(function(t) { return t.lastScrapedAt && t.resultCount === 0; }).length;
+
+    wrap.innerHTML = '<table>' +
+      '<thead><tr><th>URL</th><th>ID</th><th>最終取得</th><th>件数</th><th>状態</th><th>操作</th></tr></thead><tbody>' +
+      targets.map(function(t) {
+        var lastAt = t.lastScrapedAt ? new Date(t.lastScrapedAt).toLocaleString() : '未取得';
+        var dotClass = !t.lastScrapedAt ? 'dot-none' : (t.resultCount > 0 ? 'dot-ok' : 'dot-err');
+        var defBadge = t.isDefault ? '<span class="tag tag-default">デフォルト</span>' : '';
+        var eid = t.id.replace(/'/g, '');
+        return '<tr>' +
+          '<td class="url-cell">' + defBadge + t.url + '</td>' +
+          '<td class="id-cell" title="' + t.id + '">' + t.id.slice(0,8) + '…</td>' +
+          '<td style="font-size:12px;color:#888">' + lastAt + '</td>' +
+          '<td>' + t.resultCount + '</td>' +
+          '<td><span class="dot ' + dotClass + '"></span></td>' +
+          '<td><div class="actions">' +
+            '<button class="btn btn-sm" onclick="fillAndShowPane(\'scrape-now\',\'scrape-id\',\'' + eid + '\')">今すぐ実行</button>' +
+            '<button class="btn btn-sm" onclick="fillAndShowPane(\'history\',\'history-id\',\'' + eid + '\')">履歴</button>' +
+            '<button class="btn btn-sm btn-danger" onclick="quickDelete(\'' + eid + '\')">削除</button>' +
+          '</div></td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table>';
+  } catch(e) {
+    wrap.innerHTML = '<div class="empty" style="color:#e03e3e">読み込みに失敗しました: ' + e.message + '</div>';
+  }
+}
+
+async function quickDelete(id) {
+  if (!confirm('このターゲットを削除しますか？')) return;
+  try {
+    var r = await fetch('/api/targets/' + id, { method: 'DELETE' });
+    var data = await r.json();
+    if (data.success) { toast('削除しました'); loadDashboard(); }
+    else toast(data.error || '削除に失敗しました', true);
+  } catch(e) { toast('削除に失敗しました', true); }
+}
+
+// ── 自動更新タイマー ──────────────────────────────────
+
+var REFRESH_SEC = 30;
+var remaining = REFRESH_SEC;
+var timerInterval = null;
+
+function updateCountdown() {
+  var el = document.getElementById('countdown');
+  if (el) el.textContent = remaining + '秒後に自動更新';
+}
+
+function resetTimer() {
+  clearInterval(timerInterval);
+  remaining = REFRESH_SEC;
+  updateCountdown();
+  loadDashboard();
+  timerInterval = setInterval(function() {
+    var pane = document.getElementById('pane-dashboard');
+    if (pane && !pane.classList.contains('hidden')) {
+      remaining--;
+      updateCountdown();
+      if (remaining <= 0) { remaining = REFRESH_SEC; loadDashboard(); }
+    } else {
+      remaining = REFRESH_SEC;
+      updateCountdown();
+    }
+  }, 1000);
+}
+
+// ── ターゲット操作 ────────────────────────────────────
+
+async function reqTargetsList() {
+  var url = v('list-url');
+  var path = url ? '/api/targets?url=' + encodeURIComponent(url) : '/api/targets';
+  await apiReq('targets-list', 'GET', path);
+}
+
+async function reqAdd() {
+  var url = v('add-url');
+  if (!url) { alert('URLを入力してください'); return; }
+  var res = await apiReq('targets-add', 'POST', '/api/targets', { url: url });
+  if (res.data && res.data.success) { toast('登録しました'); loadDashboard(); }
+  else if (res.data) toast(res.data.error || '登録に失敗しました', true);
+}
+
+async function reqDelete() {
+  var id = v('delete-id');
+  if (!id) { alert('IDを入力してください'); return; }
+  if (!confirm('このターゲットを削除しますか？')) return;
+  var res = await apiReq('targets-delete', 'DELETE', '/api/targets/' + id);
+  if (res.data && res.data.success) { toast('削除しました'); loadDashboard(); }
+  else if (res.data) toast(res.data.error || '削除に失敗しました', true);
+}
+
+async function reqScrapeNow() {
+  var id = v('scrape-id');
+  if (!id) { alert('IDを入力してください'); return; }
+  var res = await apiReq('scrape-now', 'POST', '/api/targets/' + id + '/scrape');
+  if (res.data && res.data.success) toast('スクレイピングを実行しました');
+  else if (res.data) toast(res.data.error || '実行に失敗しました', true);
+}
+
+async function reqHistory() {
+  var id = v('history-id');
+  var limit = v('history-limit') || '10';
+  if (!id) { alert('IDを入力してください'); return; }
+  await apiReq('history', 'GET', '/api/targets/' + id + '/history?limit=' + limit);
+}
+
+async function reqLatest() {
+  var url = v('latest-url');
+  if (!url) { alert('URLを入力してください'); return; }
+  await apiReq('latest', 'GET', '/api/latest?url=' + encodeURIComponent(url));
+}
+
+// ── 設定 ─────────────────────────────────────────────
+
+async function loadSettings() {
+  try {
+    var r = await fetch('/api/settings');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var data = await r.json();
+    if (!data.success) throw new Error(data.error);
+    renderDefaultUrls(data.data.defaultUrls);
+    document.getElementById('interval-input').value = data.data.scrapeInterval;
+  } catch(e) {
+    toast('設定の読み込みに失敗しました: ' + e.message, true);
+  }
+}
+
+function renderDefaultUrls(urls) {
+  var el = document.getElementById('default-urls-list');
+  if (!urls || urls.length === 0) {
+    el.innerHTML = '<div style="font-size:13px;color:#bbb;padding:4px 0">デフォルトURLが登録されていません</div>';
+    return;
+  }
+  el.innerHTML = urls.map(function(url) {
+    var safe = url.replace(/'/g, '');
+    return '<div class="url-item">' +
+      '<span>' + url + '</span>' +
+      '<button class="btn btn-sm btn-danger" onclick="removeDefaultUrl(\'' + safe + '\')">削除</button>' +
+    '</div>';
+  }).join('');
+}
+
+async function addDefaultUrl() {
+  var url = v('new-default-url');
+  if (!url) { alert('URLを入力してください'); return; }
+  try {
+    var r = await fetch('/api/settings');
+    var current = await r.json();
+    var urls = (current.success && current.data.defaultUrls) ? current.data.defaultUrls.slice() : [];
+    if (urls.indexOf(url) !== -1) { toast('すでに登録済みのURLです', true); return; }
+    urls.push(url);
+    await saveSettings({ defaultUrls: urls });
+    document.getElementById('new-default-url').value = '';
+  } catch(e) { toast('追加に失敗しました', true); }
+}
+
+async function removeDefaultUrl(url) {
+  if (!confirm(url + '\nをデフォルトURLから削除しますか？')) return;
+  try {
+    var r = await fetch('/api/settings');
+    var current = await r.json();
+    var urls = (current.success && current.data.defaultUrls)
+      ? current.data.defaultUrls.filter(function(u) { return u !== url; })
+      : [];
+    await saveSettings({ defaultUrls: urls });
+  } catch(e) { toast('削除に失敗しました', true); }
+}
+
+async function saveInterval() {
+  var interval = v('interval-input');
+  if (!interval) { alert('cron式を入力してください'); return; }
+  await saveSettings({ scrapeInterval: interval });
+}
+
+async function saveSettings(patch) {
+  try {
+    var r = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch)
+    });
+    var data = await r.json();
+    var box = document.getElementById('res-settings');
+    box.classList.remove('hidden');
+    var ok = r.status >= 200 && r.status < 400;
+    box.innerHTML =
+      '<div class="res-meta"><span class="status-badge ' + (ok ? 's-ok' : 's-err') + '">' + r.status + '</span>' +
+      '<span>' + new Date().toLocaleTimeString() + '</span></div>' +
+      '<div class="res-body">' + JSON.stringify(data, null, 2) + '</div>';
+    if (data.success) {
+      toast('設定を保存しました');
+      renderDefaultUrls(data.data.defaultUrls);
+      document.getElementById('interval-input').value = data.data.scrapeInterval;
+    } else {
+      toast(data.error || '保存に失敗しました', true);
+    }
+  } catch(e) { toast('保存に失敗しました: ' + e.message, true); }
+}
+
+// ── 初期化 ───────────────────────────────────────────
+
+loadDashboard();
+resetTimer();
+</script>
+</body>
+</html>
