@@ -368,9 +368,63 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
       return;
     }
 
-    const target = service.addTarget(url);
+    // フィルター（正規表現）のバリデーション
+    const { filter } = req.body as { filter?: string };
+    if (filter !== undefined) {
+      if (typeof filter !== "string") {
+        const body: ApiResponse<never> = { success: false, error: '"filter" must be a string' };
+        res.status(400).json(body);
+        return;
+      }
+      try {
+        new RegExp(filter);
+      } catch {
+        const body: ApiResponse<never> = { success: false, error: `Invalid regex: "${filter}"` };
+        res.status(400).json(body);
+        return;
+      }
+    }
+
+    const target = service.addTarget(url, filter);
     const body: ApiResponse<typeof target> = { success: true, data: target };
     res.status(201).json(body);
+  });
+
+  // フィルター設定・更新
+  router.put("/targets/:id/filter", (req: Request, res: Response) => {
+    const { filter } = req.body as { filter?: string };
+    if (!filter || typeof filter !== "string") {
+      const body: ApiResponse<never> = { success: false, error: '"filter" is required and must be a string' };
+      res.status(400).json(body);
+      return;
+    }
+    try {
+      new RegExp(filter);
+    } catch {
+      const body: ApiResponse<never> = { success: false, error: `Invalid regex: "${filter}"` };
+      res.status(400).json(body);
+      return;
+    }
+    const ok = service.setFilter(req.params.id, filter);
+    if (!ok) {
+      const body: ApiResponse<never> = { success: false, error: "Target not found" };
+      res.status(404).json(body);
+      return;
+    }
+    const body: ApiResponse<{ filter: string }> = { success: true, data: { filter } };
+    res.json(body);
+  });
+
+  // フィルター削除
+  router.delete("/targets/:id/filter", (req: Request, res: Response) => {
+    const ok = service.setFilter(req.params.id, undefined);
+    if (!ok) {
+      const body: ApiResponse<never> = { success: false, error: "Target not found" };
+      res.status(404).json(body);
+      return;
+    }
+    const body: ApiResponse<{ removed: boolean }> = { success: true, data: { removed: true } };
+    res.json(body);
   });
 
   // ターゲット削除

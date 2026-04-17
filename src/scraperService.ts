@@ -52,7 +52,7 @@ export class ScraperService {
 
   // ── ターゲット管理 ──────────────────────────────────
 
-  addTarget(url: string): ScrapedTarget {
+  addTarget(url: string, filter?: string): ScrapedTarget {
     for (const target of this.targets.values()) {
       if (target.url === url) return target;
     }
@@ -62,12 +62,24 @@ export class ScraperService {
       url,
       createdAt: new Date().toISOString(),
       results: [],
+      ...(filter !== undefined && { filter }),
     };
 
     this.targets.set(target.id, target);
     console.log(`[ScraperService] Target added: ${url} (id: ${target.id})`);
     this.scrape(target.id);
     return target;
+  }
+
+  setFilter(id: string, filter: string | undefined): boolean {
+    const target = this.targets.get(id);
+    if (!target) return false;
+    if (filter === undefined) {
+      delete target.filter;
+    } else {
+      target.filter = filter;
+    }
+    return true;
   }
 
   removeTarget(id: string): boolean {
@@ -148,6 +160,18 @@ export class ScraperService {
         success: false,
         error: message,
       };
+    }
+
+    // 正規表現フィルターが設定されている場合はマッチ結果を付加
+    if (result.success && target.filter) {
+      try {
+        const regex = new RegExp(target.filter, "g");
+        const matches = Array.from(result.html.matchAll(regex), (m) => m[0]);
+        result.matches = matches;
+        console.log(`[ScraperService] Filter matched ${matches.length} item(s) for ${target.url}`);
+      } catch (e) {
+        console.warn(`[ScraperService] Invalid regex filter "${target.filter}":`, e);
+      }
     }
 
     target.results.push(result);

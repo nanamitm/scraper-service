@@ -5,7 +5,8 @@ export interface ScrapeResult {
   scrapedAt: string;
   success: boolean;
   error?: string;
-  truncated?: boolean; // HTMLが512KBを超えて切り詰められた場合にtrue
+  truncated?: boolean;    // HTMLが512KBを超えて切り詰められた場合にtrue
+  matches?: string[];     // 正規表現フィルターにマッチした文字列の配列
 }
 
 export interface ScrapedTarget {
@@ -14,6 +15,7 @@ export interface ScrapedTarget {
   createdAt: string;
   lastScrapedAt?: string;
   results: ScrapeResult[];
+  filter?: string;        // 正規表現フィルター（オプション）
 }
 
 export interface ApiResponse<T> {
