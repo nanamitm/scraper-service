@@ -60,6 +60,15 @@
     .tag-post { background: #eaf3de; color: #3b6d11; }
     .tag-del { background: #fcebeb; color: #a32d2d; }
     .tag-default { background: #fff3cd; color: #856404; border: 0.5px solid #ffc107; margin-right: 4px; }
+    .tag-filter { background: #f0e6fb; color: #6a2fa0; border: 0.5px solid #c084fc; margin-right: 4px; }
+    .m-put { color: #7c4a03; }
+    .filter-test-result { margin-top: 10px; background: #f0e6fb; border: 0.5px solid #c084fc; border-radius: 8px; padding: 1rem; }
+    .filter-test-result .match-count { font-size: 12px; color: #6a2fa0; font-weight: 600; margin-bottom: 6px; }
+    .filter-test-result .match-item { font-family: monospace; font-size: 12px; background: #fff; border: 0.5px solid #ddd; border-radius: 4px; padding: 4px 8px; margin-bottom: 4px; word-break: break-all; }
+    .filter-test-empty { font-size: 13px; color: #999; padding: 8px 0; }
+    .current-filter { background: #f5f5f3; border: 0.5px solid #e0e0e0; border-radius: 6px; padding: 8px 12px; font-family: monospace; font-size: 13px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .current-filter span { flex: 1; word-break: break-all; color: #6a2fa0; }
+    .current-filter .none { color: #bbb; font-style: italic; font-family: inherit; }
     .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
     .dot-ok { background: #3b6d11; } .dot-err { background: #e03e3e; } .dot-none { background: #ccc; }
     .actions { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -94,6 +103,8 @@
     <button class="nav-btn" data-pane="targets-delete" onclick="showPane('targets-delete', this)"><span class="method m-delete">DELETE</span>/api/targets/:id</button>
     <button class="nav-btn" data-pane="scrape-now" onclick="showPane('scrape-now', this)"><span class="method m-post">POST</span>/api/targets/:id/scrape</button>
     <button class="nav-btn" data-pane="history" onclick="showPane('history', this)"><span class="method m-get">GET</span>/api/targets/:id/history</button>
+    <div class="sidebar-label">フィルター管理</div>
+    <button class="nav-btn" data-pane="filter" onclick="showPane('filter', this)"><span class="method m-put">PUT</span>/api/targets/:id/filter</button>
     <div class="sidebar-label">結果取得</div>
     <button class="nav-btn" data-pane="defaults-latest" onclick="showPane('defaults-latest', this)"><span class="method m-get">GET</span>/api/defaults/latest</button>
     <button class="nav-btn" data-pane="latest" onclick="showPane('latest', this)"><span class="method m-get">GET</span>/api/latest?url=</button>
@@ -225,6 +236,47 @@
         </div>
         <button class="btn btn-primary" onclick="reqHistory()">送信</button>
         <div id="res-history" class="res-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- フィルター管理 -->
+    <div id="pane-filter" class="pane hidden">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px"><span class="tag tag-filter">FILTER</span>フィルター設定・テスト</div>
+        <div class="card-desc">ターゲットごとに正規表現フィルターを設定します。スクレイピング時にマッチした文字列が <code>matches</code> に保存されます。</div>
+        <div class="field">
+          <label>ターゲットID（必須）</label>
+          <div class="row">
+            <input id="filter-id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" oninput="onFilterIdInput()" />
+            <button class="btn" onclick="loadCurrentFilter()">読み込み</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>現在のフィルター</label>
+          <div class="current-filter" id="current-filter-display">
+            <span class="none">未設定</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>新しい正規表現（gフラグで全マッチを抽出）</label>
+          <input id="filter-regex" type="text" placeholder="例: &lt;title&gt;(.*?)&lt;/title&gt;" style="font-family:monospace" oninput="clearTestResult()" />
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn btn-primary" onclick="saveFilter()">保存</button>
+          <button class="btn" onclick="testFilter()" style="border-color:#c084fc;color:#6a2fa0">▶ テスト実行</button>
+          <button class="btn btn-danger" onclick="deleteFilter()">フィルター削除</button>
+        </div>
+        <div id="filter-test-result" class="hidden"></div>
+        <div id="res-filter" class="res-box hidden"></div>
+      </div>
+      <div class="card" style="margin-top:0">
+        <div class="card-title" style="margin-bottom:8px;font-size:13px">正規表現の例</div>
+        <div style="font-size:12px;color:#777;line-height:2.2">
+          <div><code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">&lt;title&gt;(.*?)&lt;/title&gt;</code>　タイトルタグを抽出</div>
+          <div><code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">https?://[^\s"&lt;&gt;]+</code>　URLを抽出</div>
+          <div><code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">\d{4}-\d{2}-\d{2}</code>　日付（YYYY-MM-DD）を抽出</div>
+          <div><code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">&lt;h[1-3][^&gt;]*&gt;(.*?)&lt;/h[1-3]&gt;</code>　見出しタグを抽出</div>
+        </div>
       </div>
     </div>
 
@@ -364,9 +416,10 @@ async function loadDashboard() {
         var lastAt = t.lastScrapedAt ? new Date(t.lastScrapedAt).toLocaleString() : '未取得';
         var dotClass = !t.lastScrapedAt ? 'dot-none' : (t.resultCount > 0 ? 'dot-ok' : 'dot-err');
         var defBadge = t.isDefault ? '<span class="tag tag-default">デフォルト</span>' : '';
+        var filterBadge = t.filter ? '<span class="tag tag-filter" title="' + escapeHtml(t.filter) + '">🔍 フィルター</span>' : '';
         var eid = t.id.replace(/'/g, '');
         return '<tr>' +
-          '<td class="url-cell">' + defBadge + t.url + '</td>' +
+          '<td class="url-cell">' + defBadge + filterBadge + t.url + '</td>' +
           '<td class="id-cell" title="' + t.id + '">' + t.id.slice(0,8) + '…</td>' +
           '<td style="font-size:12px;color:#888">' + lastAt + '</td>' +
           '<td>' + t.resultCount + '</td>' +
@@ -374,6 +427,7 @@ async function loadDashboard() {
           '<td><div class="actions">' +
             '<button class="btn btn-sm" onclick="fillAndShowPane(\'scrape-now\',\'scrape-id\',\'' + eid + '\')">今すぐ実行</button>' +
             '<button class="btn btn-sm" onclick="fillAndShowPane(\'history\',\'history-id\',\'' + eid + '\')">履歴</button>' +
+            '<button class="btn btn-sm" style="border-color:#c084fc;color:#6a2fa0" onclick="openFilter(\'' + eid + '\')">フィルター</button>' +
             '<button class="btn btn-sm btn-danger" onclick="quickDelete(\'' + eid + '\')">削除</button>' +
           '</div></td>' +
         '</tr>';
@@ -554,6 +608,127 @@ async function saveSettings(patch) {
       toast(data.error || '保存に失敗しました', true);
     }
   } catch(e) { toast('保存に失敗しました: ' + e.message, true); }
+}
+
+// ── フィルター管理 ────────────────────────────────────
+
+function openFilter(id) {
+  var btn = document.querySelector('[data-pane="filter"]');
+  showPane('filter', btn);
+  document.getElementById('filter-id').value = id;
+  loadCurrentFilter();
+}
+
+function onFilterIdInput() {
+  document.getElementById('current-filter-display').innerHTML = '<span class="none">未設定</span>';
+  clearTestResult();
+}
+
+async function loadCurrentFilter() {
+  var id = v('filter-id');
+  if (!id) return;
+  try {
+    var r = await fetch('/api/targets/' + id);
+    var data = await r.json();
+    var display = document.getElementById('current-filter-display');
+    if (!r.ok || !data.success) {
+      display.innerHTML = '<span class="none">ターゲットが見つかりません</span>';
+      return;
+    }
+    var filter = data.data.filter;
+    if (filter) {
+      display.innerHTML = '<span>' + escapeHtml(filter) + '</span>' +
+        '<button class="btn btn-sm" onclick="document.getElementById(\'filter-regex\').value=\'' +
+        filter.replace(/'/g, "\\'") + '\'">コピー</button>';
+    } else {
+      display.innerHTML = '<span class="none">未設定</span>';
+    }
+  } catch(e) {
+    toast('読み込みに失敗しました', true);
+  }
+}
+
+async function saveFilter() {
+  var id = v('filter-id');
+  var regex = v('filter-regex');
+  if (!id) { alert('IDを入力してください'); return; }
+  if (!regex) { alert('正規表現を入力してください'); return; }
+  var res = await apiReq('filter', 'PUT', '/api/targets/' + id + '/filter', { filter: regex });
+  if (res.data && res.data.success) {
+    toast('フィルターを保存しました');
+    loadCurrentFilter();
+    loadDashboard();
+  } else if (res.data) {
+    toast(res.data.error || '保存に失敗しました', true);
+  }
+}
+
+async function deleteFilter() {
+  var id = v('filter-id');
+  if (!id) { alert('IDを入力してください'); return; }
+  if (!confirm('このターゲットのフィルターを削除しますか？')) return;
+  var res = await apiReq('filter', 'DELETE', '/api/targets/' + id + '/filter');
+  if (res.data && res.data.success) {
+    toast('フィルターを削除しました');
+    document.getElementById('filter-regex').value = '';
+    loadCurrentFilter();
+    loadDashboard();
+  } else if (res.data) {
+    toast(res.data.error || '削除に失敗しました', true);
+  }
+}
+
+async function testFilter() {
+  var id = v('filter-id');
+  var regex = v('filter-regex');
+  if (!id) { alert('IDを入力してください'); return; }
+  if (!regex) { alert('正規表現を入力してください'); return; }
+
+  // 正規表現の検証
+  try { new RegExp(regex); } catch(e) {
+    toast('正規表現が無効です: ' + e.message, true);
+    return;
+  }
+
+  var resultBox = document.getElementById('filter-test-result');
+  resultBox.className = 'filter-test-result';
+  resultBox.innerHTML = '<div class="match-count">テスト中...</div>';
+
+  try {
+    var r = await fetch('/api/targets/' + id);
+    var data = await r.json();
+    if (!r.ok || !data.success) {
+      resultBox.innerHTML = '<div class="match-count" style="color:#e03e3e">ターゲットが見つかりません</div>';
+      return;
+    }
+    var results = data.data.results;
+    if (!results || results.length === 0) {
+      resultBox.innerHTML = '<div class="filter-test-empty">スクレイピング結果がまだありません。先に実行してください。</div>';
+      return;
+    }
+    var latestHtml = results[results.length - 1].html;
+    var re = new RegExp(regex, 'g');
+    var matches = Array.from(latestHtml.matchAll(re), function(m) { return m[0]; });
+
+    if (matches.length === 0) {
+      resultBox.innerHTML = '<div class="match-count">マッチなし（0件）</div>' +
+        '<div class="filter-test-empty">正規表現にマッチする文字列が見つかりませんでした。</div>';
+    } else {
+      var items = matches.slice(0, 50).map(function(m) {
+        return '<div class="match-item">' + escapeHtml(m) + '</div>';
+      }).join('');
+      var more = matches.length > 50 ? '<div style="font-size:12px;color:#999;padding-top:4px">…他 ' + (matches.length - 50) + ' 件</div>' : '';
+      resultBox.innerHTML = '<div class="match-count">✅ ' + matches.length + ' 件マッチ</div>' + items + more;
+    }
+  } catch(e) {
+    resultBox.innerHTML = '<div class="match-count" style="color:#e03e3e">エラー: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function clearTestResult() {
+  var box = document.getElementById('filter-test-result');
+  box.className = 'hidden';
+  box.innerHTML = '';
 }
 
 // ── 初期化 ───────────────────────────────────────────
