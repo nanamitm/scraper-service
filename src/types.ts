@@ -1,6 +1,7 @@
 export interface ScrapeResult {
   url: string;
-  html: string;             // フィルター設定時は処理後の結果を直接格納
+  html: string;             // フィルター設定時は処理後の結果、未設定時は生HTML
+  rawHtml: string;          // フィルター適用前の生HTML（常に保持）
   statusCode: number;
   scrapedAt: string;
   success: boolean;

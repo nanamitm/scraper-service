@@ -735,7 +735,8 @@ async function testFilter() {
       resultBox.innerHTML = '<div class="filter-test-empty">スクレイピング結果がまだありません。先に実行してください。</div>';
       return;
     }
-    var latestHtml = results[results.length - 1].html;
+    var latestResult = results[results.length - 1];
+    var latestHtml = latestResult.rawHtml || latestResult.html; // 常にフィルター前の文字列を使用
     var re = new RegExp(regex, 'g');
     var matches = Array.from(latestHtml.matchAll(re), function(m) { return m[0]; });
 

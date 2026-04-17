@@ -86,7 +86,29 @@ export class ScraperService {
         delete target.filterReplace;
       }
     }
+    // 既存の全結果にフィルターを即時再適用
+    for (const result of target.results) {
+      result.html = result.rawHtml; // いったん生HTMLに戻す
+      this.applyFilter(result, target.filter, target.filterReplace);
+    }
+    console.log(`[ScraperService] Filter updated and reapplied to ${target.results.length} result(s) for ${target.url}`);
     return true;
+  }
+
+  /** rawHtml を元にフィルター／置換を適用して html を上書きする */
+  private applyFilter(result: ScrapeResult, filter?: string, filterReplace?: string): void {
+    if (!result.success || !filter) return;
+    try {
+      const regex = new RegExp(filter, "g");
+      if (filterReplace !== undefined) {
+        result.html = result.rawHtml.replace(regex, filterReplace);
+      } else {
+        const matches = Array.from(result.rawHtml.matchAll(regex), (m) => m[0]);
+        result.html = matches.join("\n");
+      }
+    } catch (e) {
+      console.warn(`[ScraperService] Invalid regex filter "${filter}":`, e);
+    }
   }
 
   removeTarget(id: string): boolean {
@@ -142,16 +164,17 @@ export class ScraperService {
         validateStatus: () => true,
       });
 
-      const rawHtml: string = response.data;
-      const truncated = Buffer.byteLength(rawHtml, "utf-8") > MAX_HTML_BYTES;
-      const html = truncated
-        ? Buffer.from(rawHtml, "utf-8").slice(0, MAX_HTML_BYTES).toString("utf-8") +
+      const fetched: string = response.data;
+      const truncated = Buffer.byteLength(fetched, "utf-8") > MAX_HTML_BYTES;
+      const rawHtml = truncated
+        ? Buffer.from(fetched, "utf-8").slice(0, MAX_HTML_BYTES).toString("utf-8") +
           "\n<!-- [scraper-service] HTML truncated: exceeded 512KB -->"
-        : rawHtml;
+        : fetched;
 
       result = {
         url: target.url,
-        html,
+        html: rawHtml,
+        rawHtml,
         statusCode: response.status,
         scrapedAt: new Date().toISOString(),
         success: response.status >= 200 && response.status < 400,
@@ -162,6 +185,7 @@ export class ScraperService {
       result = {
         url: target.url,
         html: "",
+        rawHtml: "",
         statusCode: 0,
         scrapedAt: new Date().toISOString(),
         success: false,
@@ -169,25 +193,8 @@ export class ScraperService {
       };
     }
 
-    // 正規表現フィルター／置換が設定されている場合に html を直接上書き
-    if (result.success && target.filter) {
-      try {
-        const regex = new RegExp(target.filter, "g");
-
-        if (target.filterReplace !== undefined) {
-          // 置換モード：html を置換結果で上書き
-          result.html = result.html.replace(regex, target.filterReplace);
-          console.log(`[ScraperService] Filter replaced html for ${target.url}`);
-        } else {
-          // 抽出モード：マッチした文字列を改行区切りで html に上書き
-          const matches = Array.from(result.html.matchAll(regex), (m) => m[0]);
-          result.html = matches.join("\n");
-          console.log(`[ScraperService] Filter extracted ${matches.length} item(s) for ${target.url}`);
-        }
-      } catch (e) {
-        console.warn(`[ScraperService] Invalid regex filter "${target.filter}":`, e);
-      }
-    }
+    // 正規表現フィルター／置換が設定されている場合に html を上書き（rawHtml は保持）
+    this.applyFilter(result, target.filter, target.filterReplace);
 
     target.results.push(result);
     if (target.results.length > MAX_RESULTS_PER_TARGET) {
