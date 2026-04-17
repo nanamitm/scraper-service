@@ -741,27 +741,32 @@ async function testFilter() {
 
     var html = '';
 
-    // マッチ結果
-    if (matches.length === 0) {
-      html += '<div class="match-count">マッチなし（0件）</div>' +
-        '<div class="filter-test-empty">正規表現にマッチする文字列が見つかりませんでした。</div>';
-    } else {
-      var items = matches.slice(0, 50).map(function(m) {
-        return '<div class="match-item">' + escapeHtml(m) + '</div>';
-      }).join('');
-      var more = matches.length > 50 ? '<div style="font-size:12px;color:#999;padding-top:4px">…他 ' + (matches.length - 50) + ' 件</div>' : '';
-      html += '<div class="match-count">✅ ' + matches.length + ' 件マッチ</div>' + items + more;
-    }
-
-    // 置換結果
     if (hasReplace) {
+      // 置換モード：置換後の結果のみ表示
       var replaced = latestHtml.replace(new RegExp(regex, 'g'), replaceVal);
       var previewLen = 1000;
-      var preview = replaced.length > previewLen ? replaced.slice(0, previewLen) + '\n…（' + replaced.length + ' 文字）' : replaced;
-      html += '<div style="margin-top:14px">' +
-        '<div class="match-count" style="color:#7c4a03">🔄 置換後プレビュー（先頭 ' + previewLen + ' 文字）</div>' +
-        '<div class="match-item" style="white-space:pre-wrap;max-height:200px;overflow-y:auto;color:#444">' +
-        escapeHtml(preview) + '</div></div>';
+      var preview = replaced.length > previewLen
+        ? replaced.slice(0, previewLen) + '\n…（全 ' + replaced.length + ' 文字）'
+        : replaced;
+      var matchCount = matches.length;
+      html =
+        '<div class="match-count" style="color:#7c4a03">🔄 ' + matchCount + ' 箇所を置換</div>' +
+        '<div class="match-item" style="white-space:pre-wrap;max-height:300px;overflow-y:auto;color:#444">' +
+        escapeHtml(preview) + '</div>';
+    } else {
+      // 抽出モード：マッチ結果を一覧表示
+      if (matches.length === 0) {
+        html = '<div class="match-count">マッチなし（0件）</div>' +
+          '<div class="filter-test-empty">正規表現にマッチする文字列が見つかりませんでした。</div>';
+      } else {
+        var items = matches.slice(0, 50).map(function(m) {
+          return '<div class="match-item">' + escapeHtml(m) + '</div>';
+        }).join('');
+        var more = matches.length > 50
+          ? '<div style="font-size:12px;color:#999;padding-top:4px">…他 ' + (matches.length - 50) + ' 件</div>'
+          : '';
+        html = '<div class="match-count">✅ ' + matches.length + ' 件マッチ</div>' + items + more;
+      }
     }
 
     resultBox.innerHTML = html;
