@@ -1,13 +1,11 @@
 export interface ScrapeResult {
   url: string;
-  html: string;
+  html: string;             // フィルター設定時は処理後の結果を直接格納
   statusCode: number;
   scrapedAt: string;
   success: boolean;
   error?: string;
   truncated?: boolean;      // HTMLが512KBを超えて切り詰められた場合にtrue
-  matches?: string[];       // 正規表現フィルターにマッチした文字列の配列
-  replacedHtml?: string;    // 置換後のHTML（filterReplaceが設定されている場合）
 }
 
 export interface ScrapedTarget {

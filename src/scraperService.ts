@@ -169,23 +169,20 @@ export class ScraperService {
       };
     }
 
-    // 正規表現フィルター／置換が設定されている場合に適用
+    // 正規表現フィルター／置換が設定されている場合に html を直接上書き
     if (result.success && target.filter) {
       try {
         const regex = new RegExp(target.filter, "g");
 
-        // マッチ抽出
-        const matches = Array.from(result.html.matchAll(regex), (m) => m[0]);
-        result.matches = matches;
-        console.log(`[ScraperService] Filter matched ${matches.length} item(s) for ${target.url}`);
-
-        // 置換（filterReplace が設定されている場合）
         if (target.filterReplace !== undefined) {
-          result.replacedHtml = result.html.replace(
-            new RegExp(target.filter, "g"),
-            target.filterReplace
-          );
-          console.log(`[ScraperService] Filter replaced for ${target.url}`);
+          // 置換モード：html を置換結果で上書き
+          result.html = result.html.replace(regex, target.filterReplace);
+          console.log(`[ScraperService] Filter replaced html for ${target.url}`);
+        } else {
+          // 抽出モード：マッチした文字列を改行区切りで html に上書き
+          const matches = Array.from(result.html.matchAll(regex), (m) => m[0]);
+          result.html = matches.join("\n");
+          console.log(`[ScraperService] Filter extracted ${matches.length} item(s) for ${target.url}`);
         }
       } catch (e) {
         console.warn(`[ScraperService] Invalid regex filter "${target.filter}":`, e);
