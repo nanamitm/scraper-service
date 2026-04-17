@@ -146,6 +146,15 @@ export function createPublicRouter(service: ScraperService): Router {
   return router;
 }
 
+/** 設定を永続化するヘルパー */
+function persistSettings(service: ScraperService, store: SettingsStore): void {
+  store.save({
+    defaultUrls: service.getDefaultUrls(),
+    scrapeInterval: service.getScrapeInterval(),
+    targets: service.getTargetSettings(),
+  });
+}
+
 /**
  * 管理API用ルーター（port 3001）
  * /api/targets の操作・即時スクレイピングはここのみ
@@ -391,6 +400,8 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
     }
 
     const target = service.addTarget(url, filter, filterReplace);
+    // ターゲット追加を永続化
+    persistSettings(service, store);
     const body: ApiResponse<typeof target> = { success: true, data: target };
     res.status(201).json(body);
   });
@@ -421,6 +432,8 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
       res.status(404).json(body);
       return;
     }
+    // フィルター設定を永続化
+    persistSettings(service, store);
     const body: ApiResponse<{ filter: string; filterReplace?: string }> = {
       success: true,
       data: { filter, ...(filterReplace !== undefined && { filterReplace }) },
@@ -436,6 +449,8 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
       res.status(404).json(body);
       return;
     }
+    // フィルター設定を永続化
+    persistSettings(service, store);
     const body: ApiResponse<{ removed: boolean }> = { success: true, data: { removed: true } };
     res.json(body);
   });
@@ -451,6 +466,8 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
       res.status(404).json(body);
       return;
     }
+    // ターゲット削除を永続化
+    persistSettings(service, store);
     const body: ApiResponse<{ removed: boolean }> = {
       success: true,
       data: { removed: true },

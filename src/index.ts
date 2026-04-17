@@ -48,6 +48,18 @@ async function main() {
     service.addTarget(url);
   }
 
+  // 保存されていたフィルター設定を復元
+  if (settings.targets && settings.targets.length > 0) {
+    for (const ts of settings.targets) {
+      if (ts.filter === undefined) continue;
+      const target = service.getAllTargets().find((t) => t.url === ts.url);
+      if (target) {
+        service.setFilter(target.id, ts.filter, ts.filterReplace);
+        console.log(`[Settings] Filter restored for ${ts.url}: /${ts.filter}/`);
+      }
+    }
+  }
+
   // cronタスクを管理（動的に再起動できるよう変数で保持）
   let cronTask = startCron(service);
 

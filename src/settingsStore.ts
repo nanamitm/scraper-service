@@ -1,14 +1,23 @@
 import fs from "fs";
 import path from "path";
 
+export interface TargetFilterSettings {
+  url: string;
+  filter?: string;
+  filterReplace?: string;
+}
+
 export interface Settings {
   defaultUrls: string[];
   scrapeInterval: string;
+  /** 各ターゲットのフィルター設定（URLをキーとして保存） */
+  targets?: TargetFilterSettings[];
 }
 
 const DEFAULT_SETTINGS: Settings = {
   defaultUrls: [],
   scrapeInterval: "*/30 * * * * *",
+  targets: [],
 };
 
 export class SettingsStore {
@@ -31,6 +40,7 @@ export class SettingsStore {
       return {
         defaultUrls: Array.isArray(parsed.defaultUrls) ? parsed.defaultUrls : DEFAULT_SETTINGS.defaultUrls,
         scrapeInterval: typeof parsed.scrapeInterval === "string" ? parsed.scrapeInterval : DEFAULT_SETTINGS.scrapeInterval,
+        targets: Array.isArray(parsed.targets) ? parsed.targets : [],
       };
     } catch (err) {
       console.warn(`[SettingsStore] Failed to load settings, using defaults:`, err);

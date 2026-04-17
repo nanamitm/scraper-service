@@ -111,6 +111,17 @@ export class ScraperService {
     }
   }
 
+  /**
+   * 全ターゲットのフィルター設定を永続化用に返す
+   */
+  getTargetSettings(): Array<{ url: string; filter?: string; filterReplace?: string }> {
+    return Array.from(this.targets.values()).map((t) => ({
+      url: t.url,
+      ...(t.filter !== undefined && { filter: t.filter }),
+      ...(t.filterReplace !== undefined && { filterReplace: t.filterReplace }),
+    }));
+  }
+
   removeTarget(id: string): boolean {
     const existed = this.targets.has(id);
     this.targets.delete(id);
