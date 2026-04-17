@@ -258,8 +258,12 @@
           </div>
         </div>
         <div class="field">
-          <label>新しい正規表現（gフラグで全マッチを抽出）</label>
+          <label>正規表現（gフラグで全マッチを抽出）</label>
           <input id="filter-regex" type="text" placeholder="例: &lt;title&gt;(.*?)&lt;/title&gt;" style="font-family:monospace" oninput="clearTestResult()" />
+        </div>
+        <div class="field">
+          <label>置換文字列（空のままにするとマッチ抽出のみ・$1 などのキャプチャグループ参照も使用可）</label>
+          <input id="filter-replace" type="text" placeholder="例: [TITLE: $1] または空白で削除" style="font-family:monospace" oninput="clearTestResult()" />
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
           <button class="btn btn-primary" onclick="saveFilter()">保存</button>
@@ -270,12 +274,17 @@
         <div id="res-filter" class="res-box hidden"></div>
       </div>
       <div class="card" style="margin-top:0">
-        <div class="card-title" style="margin-bottom:8px;font-size:13px">正規表現の例</div>
-        <div style="font-size:12px;color:#777;line-height:2.2">
+        <div class="card-title" style="margin-bottom:8px;font-size:13px">正規表現・置換の例</div>
+        <div style="font-size:12px;color:#777;line-height:2.4">
+          <div style="font-weight:600;color:#999;margin-bottom:2px">── 抽出（置換文字列なし）──</div>
           <div><code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">&lt;title&gt;(.*?)&lt;/title&gt;</code>　タイトルタグを抽出</div>
           <div><code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">https?://[^\s"&lt;&gt;]+</code>　URLを抽出</div>
           <div><code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">\d{4}-\d{2}-\d{2}</code>　日付（YYYY-MM-DD）を抽出</div>
           <div><code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">&lt;h[1-3][^&gt;]*&gt;(.*?)&lt;/h[1-3]&gt;</code>　見出しタグを抽出</div>
+          <div style="font-weight:600;color:#999;margin-top:8px;margin-bottom:2px">── 置換（置換文字列あり）──</div>
+          <div>正規表現: <code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">&lt;script[\s\S]*?&lt;/script&gt;</code>　置換: <code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0"></code>（空）→ scriptタグを削除</div>
+          <div>正規表現: <code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">&lt;title&gt;(.*?)&lt;/title&gt;</code>　置換: <code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">[TITLE: $1]</code>　→ タイトルを整形</div>
+          <div>正規表現: <code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0">&lt;[^&gt;]+&gt;</code>　置換: <code style="background:#f5f5f3;padding:1px 6px;border-radius:3px;color:#6a2fa0"></code>（空）→ HTMLタグを除去してテキスト化</div>
         </div>
       </div>
     </div>
@@ -636,16 +645,31 @@ async function loadCurrentFilter() {
       return;
     }
     var filter = data.data.filter;
+    var filterReplace = data.data.filterReplace;
     if (filter) {
-      display.innerHTML = '<span>' + escapeHtml(filter) + '</span>' +
-        '<button class="btn btn-sm" onclick="document.getElementById(\'filter-regex\').value=\'' +
-        filter.replace(/'/g, "\\'") + '\'">コピー</button>';
+      var replaceText = filterReplace !== undefined
+        ? ' → 置換: <span style="color:#7c4a03">' + escapeHtml(filterReplace === '' ? '（空文字・削除）' : filterReplace) + '</span>'
+        : ' （抽出のみ）';
+      display.innerHTML =
+        '<span>' + escapeHtml(filter) + replaceText + '</span>' +
+        '<button class="btn btn-sm" onclick="copyFilterToForm()">コピー</button>';
+      display._filterData = { filter: filter, filterReplace: filterReplace };
     } else {
       display.innerHTML = '<span class="none">未設定</span>';
+      display._filterData = null;
     }
   } catch(e) {
     toast('読み込みに失敗しました', true);
   }
+}
+
+function copyFilterToForm() {
+  var display = document.getElementById('current-filter-display');
+  var d = display._filterData;
+  if (!d) return;
+  document.getElementById('filter-regex').value = d.filter || '';
+  document.getElementById('filter-replace').value = d.filterReplace !== undefined ? d.filterReplace : '';
+  clearTestResult();
 }
 
 async function saveFilter() {
@@ -653,7 +677,9 @@ async function saveFilter() {
   var regex = v('filter-regex');
   if (!id) { alert('IDを入力してください'); return; }
   if (!regex) { alert('正規表現を入力してください'); return; }
-  var res = await apiReq('filter', 'PUT', '/api/targets/' + id + '/filter', { filter: regex });
+  var replaceVal = document.getElementById('filter-replace').value; // 空文字も有効
+  var payload = { filter: regex, filterReplace: replaceVal };
+  var res = await apiReq('filter', 'PUT', '/api/targets/' + id + '/filter', payload);
   if (res.data && res.data.success) {
     toast('フィルターを保存しました');
     loadCurrentFilter();
@@ -690,6 +716,9 @@ async function testFilter() {
     return;
   }
 
+  var replaceVal = document.getElementById('filter-replace').value;
+  var hasReplace = replaceVal !== '';
+
   var resultBox = document.getElementById('filter-test-result');
   resultBox.className = 'filter-test-result';
   resultBox.innerHTML = '<div class="match-count">テスト中...</div>';
@@ -710,16 +739,32 @@ async function testFilter() {
     var re = new RegExp(regex, 'g');
     var matches = Array.from(latestHtml.matchAll(re), function(m) { return m[0]; });
 
+    var html = '';
+
+    // マッチ結果
     if (matches.length === 0) {
-      resultBox.innerHTML = '<div class="match-count">マッチなし（0件）</div>' +
+      html += '<div class="match-count">マッチなし（0件）</div>' +
         '<div class="filter-test-empty">正規表現にマッチする文字列が見つかりませんでした。</div>';
     } else {
       var items = matches.slice(0, 50).map(function(m) {
         return '<div class="match-item">' + escapeHtml(m) + '</div>';
       }).join('');
       var more = matches.length > 50 ? '<div style="font-size:12px;color:#999;padding-top:4px">…他 ' + (matches.length - 50) + ' 件</div>' : '';
-      resultBox.innerHTML = '<div class="match-count">✅ ' + matches.length + ' 件マッチ</div>' + items + more;
+      html += '<div class="match-count">✅ ' + matches.length + ' 件マッチ</div>' + items + more;
     }
+
+    // 置換結果
+    if (hasReplace) {
+      var replaced = latestHtml.replace(new RegExp(regex, 'g'), replaceVal);
+      var previewLen = 1000;
+      var preview = replaced.length > previewLen ? replaced.slice(0, previewLen) + '\n…（' + replaced.length + ' 文字）' : replaced;
+      html += '<div style="margin-top:14px">' +
+        '<div class="match-count" style="color:#7c4a03">🔄 置換後プレビュー（先頭 ' + previewLen + ' 文字）</div>' +
+        '<div class="match-item" style="white-space:pre-wrap;max-height:200px;overflow-y:auto;color:#444">' +
+        escapeHtml(preview) + '</div></div>';
+    }
+
+    resultBox.innerHTML = html;
   } catch(e) {
     resultBox.innerHTML = '<div class="match-count" style="color:#e03e3e">エラー: ' + escapeHtml(e.message) + '</div>';
   }

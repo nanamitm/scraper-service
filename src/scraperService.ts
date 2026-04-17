@@ -52,7 +52,7 @@ export class ScraperService {
 
   // ── ターゲット管理 ──────────────────────────────────
 
-  addTarget(url: string, filter?: string): ScrapedTarget {
+  addTarget(url: string, filter?: string, filterReplace?: string): ScrapedTarget {
     for (const target of this.targets.values()) {
       if (target.url === url) return target;
     }
@@ -63,6 +63,7 @@ export class ScraperService {
       createdAt: new Date().toISOString(),
       results: [],
       ...(filter !== undefined && { filter }),
+      ...(filterReplace !== undefined && { filterReplace }),
     };
 
     this.targets.set(target.id, target);
@@ -71,13 +72,19 @@ export class ScraperService {
     return target;
   }
 
-  setFilter(id: string, filter: string | undefined): boolean {
+  setFilter(id: string, filter: string | undefined, filterReplace?: string | undefined): boolean {
     const target = this.targets.get(id);
     if (!target) return false;
     if (filter === undefined) {
       delete target.filter;
+      delete target.filterReplace;
     } else {
       target.filter = filter;
+      if (filterReplace !== undefined) {
+        target.filterReplace = filterReplace;
+      } else {
+        delete target.filterReplace;
+      }
     }
     return true;
   }
@@ -162,13 +169,24 @@ export class ScraperService {
       };
     }
 
-    // 正規表現フィルターが設定されている場合はマッチ結果を付加
+    // 正規表現フィルター／置換が設定されている場合に適用
     if (result.success && target.filter) {
       try {
         const regex = new RegExp(target.filter, "g");
+
+        // マッチ抽出
         const matches = Array.from(result.html.matchAll(regex), (m) => m[0]);
         result.matches = matches;
         console.log(`[ScraperService] Filter matched ${matches.length} item(s) for ${target.url}`);
+
+        // 置換（filterReplace が設定されている場合）
+        if (target.filterReplace !== undefined) {
+          result.replacedHtml = result.html.replace(
+            new RegExp(target.filter, "g"),
+            target.filterReplace
+          );
+          console.log(`[ScraperService] Filter replaced for ${target.url}`);
+        }
       } catch (e) {
         console.warn(`[ScraperService] Invalid regex filter "${target.filter}":`, e);
       }

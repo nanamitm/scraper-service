@@ -369,7 +369,7 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
     }
 
     // フィルター（正規表現）のバリデーション
-    const { filter } = req.body as { filter?: string };
+    const { filter, filterReplace } = req.body as { filter?: string; filterReplace?: string };
     if (filter !== undefined) {
       if (typeof filter !== "string") {
         const body: ApiResponse<never> = { success: false, error: '"filter" must be a string' };
@@ -384,15 +384,20 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
         return;
       }
     }
+    if (filterReplace !== undefined && typeof filterReplace !== "string") {
+      const body: ApiResponse<never> = { success: false, error: '"filterReplace" must be a string' };
+      res.status(400).json(body);
+      return;
+    }
 
-    const target = service.addTarget(url, filter);
+    const target = service.addTarget(url, filter, filterReplace);
     const body: ApiResponse<typeof target> = { success: true, data: target };
     res.status(201).json(body);
   });
 
   // フィルター設定・更新
   router.put("/targets/:id/filter", (req: Request, res: Response) => {
-    const { filter } = req.body as { filter?: string };
+    const { filter, filterReplace } = req.body as { filter?: string; filterReplace?: string };
     if (!filter || typeof filter !== "string") {
       const body: ApiResponse<never> = { success: false, error: '"filter" is required and must be a string' };
       res.status(400).json(body);
@@ -405,13 +410,21 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
       res.status(400).json(body);
       return;
     }
-    const ok = service.setFilter(req.params.id, filter);
+    if (filterReplace !== undefined && typeof filterReplace !== "string") {
+      const body: ApiResponse<never> = { success: false, error: '"filterReplace" must be a string' };
+      res.status(400).json(body);
+      return;
+    }
+    const ok = service.setFilter(req.params.id, filter, filterReplace);
     if (!ok) {
       const body: ApiResponse<never> = { success: false, error: "Target not found" };
       res.status(404).json(body);
       return;
     }
-    const body: ApiResponse<{ filter: string }> = { success: true, data: { filter } };
+    const body: ApiResponse<{ filter: string; filterReplace?: string }> = {
+      success: true,
+      data: { filter, ...(filterReplace !== undefined && { filterReplace }) },
+    };
     res.json(body);
   });
 
