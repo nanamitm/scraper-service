@@ -174,6 +174,28 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
     res.json({ status: "ok", role: "admin", timestamp: new Date().toISOString() });
   });
 
+  // Server-Sent Events：スクレイピング完了を即時通知
+  router.get("/events", (req: Request, res: Response) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
+    // 接続確認用の初期メッセージ
+    res.write(": connected\n\n");
+
+    const onComplete = (data: { id: string; url: string }) => {
+      res.write(`event: scrape-complete\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    service.on("scrape-complete", onComplete);
+
+    // クライアント切断時にリスナーを解除
+    req.on("close", () => {
+      service.off("scrape-complete", onComplete);
+    });
+  });
+
   // 設定取得
   router.get("/settings", (_req: Request, res: Response) => {
     const body: ApiResponse<{ defaultUrls: string[]; scrapeInterval: string }> = {

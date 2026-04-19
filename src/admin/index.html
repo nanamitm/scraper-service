@@ -126,8 +126,8 @@
         <div class="card-header">
           <div class="card-title">登録済みターゲット</div>
           <div style="display:flex;align-items:center;gap:8px">
-            <span id="countdown" style="font-size:12px;color:#bbb"></span>
-            <button class="btn btn-sm" onclick="resetTimer()">今すぐ更新</button>
+            <span id="sse-status" style="font-size:12px;color:#bbb"></span>
+            <button class="btn btn-sm" onclick="loadDashboard()">今すぐ更新</button>
           </div>
         </div>
         <div id="dashboard-wrap"><div class="empty">読み込み中...</div></div>
@@ -460,62 +460,31 @@ async function quickDelete(id) {
   } catch(e) { toast('削除に失敗しました', true); }
 }
 
-// ── 自動更新タイマー ──────────────────────────────────
+// ── SSE（スクレイピング完了通知）────────────────────────
 
-var REFRESH_SEC = 30;
-var remaining = REFRESH_SEC;
-var timerInterval = null;
+function connectSSE() {
+  var statusEl = document.getElementById('sse-status');
+  var evtSource = new EventSource('/api/events');
 
-/** cron式から更新間隔（秒）を推定する */
-function parseCronToSeconds(expr) {
-  var parts = expr.trim().split(/\s+/);
-  if (parts.length === 6) {
-    // 6フィールド（秒単位）: "*/30 * * * * *"
-    var m = parts[0].match(/^\*\/(\d+)$/);
-    if (m) return parseInt(m[1], 10);
-    if (parts[0] === '*') return 1;
-    var n = parseInt(parts[0], 10);
-    if (!isNaN(n)) return n;
-  } else if (parts.length === 5) {
-    // 5フィールド（分単位）: "*/5 * * * *"
-    var m = parts[0].match(/^\*\/(\d+)$/);
-    if (m) return parseInt(m[1], 10) * 60;
-    if (parts[0] === '*') return 60;
-    var n = parseInt(parts[0], 10);
-    if (!isNaN(n)) return n * 60;
-  }
-  return 30; // パース失敗時のデフォルト
-}
-
-/** スクレイピング間隔に合わせてダッシュボードの自動更新間隔を更新 */
-function syncRefreshTimer(scrapeInterval) {
-  var sec = parseCronToSeconds(scrapeInterval);
-  REFRESH_SEC = Math.max(sec, 3); // 最低3秒
-  remaining = REFRESH_SEC;
-  updateCountdown();
-}
-
-function updateCountdown() {
-  var el = document.getElementById('countdown');
-  if (el) el.textContent = remaining + '秒後に自動更新';
-}
-
-function resetTimer() {
-  clearInterval(timerInterval);
-  remaining = REFRESH_SEC;
-  updateCountdown();
-  loadDashboard();
-  timerInterval = setInterval(function() {
+  evtSource.addEventListener('scrape-complete', function() {
     var pane = document.getElementById('pane-dashboard');
     if (pane && !pane.classList.contains('hidden')) {
-      remaining--;
-      updateCountdown();
-      if (remaining <= 0) { remaining = REFRESH_SEC; loadDashboard(); }
-    } else {
-      remaining = REFRESH_SEC;
-      updateCountdown();
+      loadDashboard();
     }
-  }, 1000);
+  });
+
+  evtSource.onopen = function() {
+    if (statusEl) statusEl.textContent = '● 自動更新中';
+    if (statusEl) statusEl.style.color = '#3b6d11';
+  };
+
+  evtSource.onerror = function() {
+    if (statusEl) statusEl.textContent = '○ 切断（再接続中...）';
+    if (statusEl) statusEl.style.color = '#e03e3e';
+    evtSource.close();
+    // 5秒後に再接続
+    setTimeout(connectSSE, 5000);
+  };
 }
 
 // ── ターゲット操作 ────────────────────────────────────
@@ -574,7 +543,6 @@ async function loadSettings() {
     if (!data.success) throw new Error(data.error);
     renderDefaultUrls(data.data.defaultUrls);
     document.getElementById('interval-input').value = data.data.scrapeInterval;
-    syncRefreshTimer(data.data.scrapeInterval);
   } catch(e) {
     toast('設定の読み込みに失敗しました: ' + e.message, true);
   }
@@ -646,8 +614,6 @@ async function saveSettings(patch) {
       toast('設定を保存しました');
       renderDefaultUrls(data.data.defaultUrls);
       document.getElementById('interval-input').value = data.data.scrapeInterval;
-      syncRefreshTimer(data.data.scrapeInterval);
-      resetTimer();
     } else {
       toast(data.error || '保存に失敗しました', true);
     }
@@ -845,8 +811,8 @@ function clearTestResult() {
 // ── 初期化 ───────────────────────────────────────────
 
 loadDashboard();
-// 設定を先に読み込んでスクレイピング間隔を取得してからタイマーを開始
-loadSettings().then(function() { resetTimer(); }).catch(function() { resetTimer(); });
+loadSettings();
+connectSSE();
 </script>
 </body>
 </html>

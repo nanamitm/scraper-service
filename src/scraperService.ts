@@ -1,11 +1,12 @@
 import axios from "axios";
 import { randomUUID } from "crypto";
+import { EventEmitter } from "events";
 import { ScrapedTarget, ScrapeResult } from "./types";
 
 const MAX_RESULTS_PER_TARGET = 60;
 const MAX_HTML_BYTES = 512 * 1024; // 512KB
 
-export class ScraperService {
+export class ScraperService extends EventEmitter {
   private targets: Map<string, ScrapedTarget> = new Map();
   private defaultUrls: string[] = [];
   private scrapeInterval: string = "*/30 * * * * *";
@@ -214,6 +215,7 @@ export class ScraperService {
     }
     target.scrapeCount++;
     target.lastScrapedAt = result.scrapedAt;
+    this.emit("scrape-complete", { id: target.id, url: target.url });
 
     const status = result.success
       ? `✓ ${result.statusCode}`
