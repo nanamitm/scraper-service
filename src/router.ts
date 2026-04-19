@@ -73,6 +73,12 @@ async function validateUrlDns(rawUrl: string): Promise<string | null> {
   return null;
 }
 
+/** 公開APIレスポンスから rawHtml を除外する（生HTMLの外部漏洩を防ぐ） */
+function omitRawHtml(result: ScrapeResult) {
+  const { rawHtml: _omit, ...rest } = result;
+  return rest;
+}
+
 /**
  * 公開API用ルーター（port 3000）
  * 結果の取得のみ。/api/targets は管理画面のみ。
@@ -97,9 +103,10 @@ export function createPublicRouter(service: ScraperService): Router {
       return;
     }
 
-    const results: { url: string; result: ScrapeResult | null }[] = defaultUrls.map((url) => {
+    const results = defaultUrls.map((url) => {
       const target = service.getAllTargets().find((t) => t.url === url);
-      const result = target ? service.getLatestResult(target.id) ?? null : null;
+      const raw = target ? service.getLatestResult(target.id) ?? null : null;
+      const result = raw ? omitRawHtml(raw) : null;
       return { url, result };
     });
 
@@ -129,8 +136,8 @@ export function createPublicRouter(service: ScraperService): Router {
       return;
     }
 
-    const result = service.getLatestResult(target.id);
-    if (!result) {
+    const raw = service.getLatestResult(target.id);
+    if (!raw) {
       const body: ApiResponse<never> = {
         success: false,
         error: "No results yet",
@@ -139,7 +146,7 @@ export function createPublicRouter(service: ScraperService): Router {
       return;
     }
 
-    const body: ApiResponse<typeof result> = { success: true, data: result };
+    const body: ApiResponse<ReturnType<typeof omitRawHtml>> = { success: true, data: omitRawHtml(raw) };
     res.json(body);
   });
 
