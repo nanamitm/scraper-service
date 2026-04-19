@@ -819,7 +819,8 @@ function clearTestResult() {
 // ── 初期化 ───────────────────────────────────────────
 
 loadDashboard();
-resetTimer();
+// 設定を先に読み込んでスクレイピング間隔を取得してからタイマーを開始
+loadSettings().then(function() { resetTimer(); }).catch(function() { resetTimer(); });
 </script>
 </body>
 </html>
