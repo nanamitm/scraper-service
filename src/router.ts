@@ -92,25 +92,31 @@ export function createPublicRouter(service: ScraperService): Router {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  // デフォルトURL全件の最新スクレイピング結果を返す
+  // デフォルトURLの最新スクレイピング結果を返す（常に1件）
   router.get("/defaults/latest", (_req: Request, res: Response) => {
-    const defaultUrls = service.getDefaultUrls();
-    if (defaultUrls.length === 0) {
+    const defaultUrl = service.getDefaultUrl();
+    if (!defaultUrl) {
       const body: ApiResponse<never> = {
         success: false,
-        error: "No default URLs configured",
+        error: "No default URL configured",
       };
       res.status(404).json(body);
       return;
     }
 
-    const texts = defaultUrls.map((url) => {
-      const target = service.getAllTargets().find((t) => t.url === url);
-      const raw = target ? service.getLatestResult(target.id) ?? null : null;
-      return raw?.success ? raw.html : "";
-    }).filter(Boolean);
+    const target = service.getAllTargets().find((t) => t.url === defaultUrl);
+    const raw = target ? service.getLatestResult(target.id) ?? null : null;
 
-    res.type("text/plain").send(texts.join("\n\n"));
+    if (!raw?.success) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: "No results yet",
+      };
+      res.status(404).json(body);
+      return;
+    }
+
+    res.type("text/plain").send(raw.html);
   });
 
   // URLで最新スクレイピング結果を取得（IDなし）
@@ -154,8 +160,9 @@ export function createPublicRouter(service: ScraperService): Router {
 
 /** 設定を永続化するヘルパー */
 function persistSettings(service: ScraperService, store: SettingsStore): void {
+  const url = service.getDefaultUrl();
   store.save({
-    defaultUrls: service.getDefaultUrls(),
+    defaultUrls: url ? [url] : [],
     scrapeInterval: service.getScrapeInterval(),
     targets: service.getTargetSettings(),
   });
@@ -197,10 +204,10 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
 
   // 設定取得
   router.get("/settings", (_req: Request, res: Response) => {
-    const body: ApiResponse<{ defaultUrls: string[]; scrapeInterval: string }> = {
+    const body: ApiResponse<{ defaultUrl: string; scrapeInterval: string }> = {
       success: true,
       data: {
-        defaultUrls: service.getDefaultUrls(),
+        defaultUrl: service.getDefaultUrl(),
         scrapeInterval: service.getScrapeInterval(),
       },
     };
@@ -209,44 +216,32 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
 
   // 設定更新
   router.put("/settings", async (req: Request, res: Response) => {
-    const { defaultUrls, scrapeInterval } = req.body as {
-      defaultUrls?: string[];
+    const { defaultUrl, scrapeInterval } = req.body as {
+      defaultUrl?: string;
       scrapeInterval?: string;
     };
 
-    // デフォルトURL更新
-    if (defaultUrls !== undefined) {
-      if (!Array.isArray(defaultUrls)) {
-        const body: ApiResponse<never> = { success: false, error: '"defaultUrls" must be an array' };
+    // デフォルトURL更新（1件のみ）
+    if (defaultUrl !== undefined) {
+      if (typeof defaultUrl !== "string" || !defaultUrl) {
+        const body: ApiResponse<never> = { success: false, error: '"defaultUrl" must be a non-empty string' };
         res.status(400).json(body);
         return;
       }
-      // URL形式・SSRF・DNSリバインディングチェック
-      for (const url of defaultUrls) {
-        const urlError = validateUrl(url);
-        if (urlError) {
-          const body: ApiResponse<never> = { success: false, error: urlError };
-          res.status(400).json(body);
-          return;
-        }
-        const dnsError = await validateUrlDns(url);
-        if (dnsError) {
-          const body: ApiResponse<never> = { success: false, error: dnsError };
-          res.status(400).json(body);
-          return;
-        }
+      const urlError = validateUrl(defaultUrl);
+      if (urlError) {
+        const body: ApiResponse<never> = { success: false, error: urlError };
+        res.status(400).json(body);
+        return;
       }
-      // 追加されたURLをターゲットに登録
-      for (const url of defaultUrls) {
-        service.addDefaultUrl(url);
+      const dnsError = await validateUrlDns(defaultUrl);
+      if (dnsError) {
+        const body: ApiResponse<never> = { success: false, error: dnsError };
+        res.status(400).json(body);
+        return;
       }
-      // 削除されたURLをデフォルトから外す
-      for (const url of service.getDefaultUrls()) {
-        if (!defaultUrls.includes(url)) {
-          service.removeDefaultUrl(url);
-        }
-      }
-      service.setDefaultUrls(defaultUrls);
+      service.setDefaultUrl(defaultUrl);
+      service.addTarget(defaultUrl);
     }
 
     // スクレイピング間隔更新
@@ -263,35 +258,35 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
     // 設定を永続化
     persistSettings(service, store);
 
-    const body: ApiResponse<{ defaultUrls: string[]; scrapeInterval: string }> = {
+    const body: ApiResponse<{ defaultUrl: string; scrapeInterval: string }> = {
       success: true,
       data: {
-        defaultUrls: service.getDefaultUrls(),
+        defaultUrl: service.getDefaultUrl(),
         scrapeInterval: service.getScrapeInterval(),
       },
     };
     res.json(body);
   });
 
-  // デフォルトURL全件の最新スクレイピング結果を返す
+  // デフォルトURLの最新スクレイピング結果を返す（管理API用・JSON形式）
   router.get("/defaults/latest", (_req: Request, res: Response) => {
-    const defaultUrls = service.getDefaultUrls();
-    if (defaultUrls.length === 0) {
+    const defaultUrl = service.getDefaultUrl();
+    if (!defaultUrl) {
       const body: ApiResponse<never> = {
         success: false,
-        error: "No default URLs configured",
+        error: "No default URL configured",
       };
       res.status(404).json(body);
       return;
     }
 
-    const results: { url: string; result: ScrapeResult | null }[] = defaultUrls.map((url) => {
-      const target = service.getAllTargets().find((t) => t.url === url);
-      const result = target ? service.getLatestResult(target.id) ?? null : null;
-      return { url, result };
-    });
+    const target = service.getAllTargets().find((t) => t.url === defaultUrl);
+    const result = target ? service.getLatestResult(target.id) ?? null : null;
 
-    const body: ApiResponse<typeof results> = { success: true, data: results };
+    const body: ApiResponse<{ url: string; result: ScrapeResult | null }> = {
+      success: true,
+      data: { url: defaultUrl, result },
+    };
     res.json(body);
   });
 
@@ -341,7 +336,7 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
       lastScrapedAt: t.lastScrapedAt,
       scrapeCount: t.scrapeCount,
       resultCount: t.results.length,
-      isDefault: service.getDefaultUrls().includes(t.url),
+      isDefault: service.isDefaultUrl(t.url),
     }));
 
     if (filterUrl) {

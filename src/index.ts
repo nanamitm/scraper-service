@@ -17,10 +17,7 @@ const SETTINGS_PATH = path.join(__dirname, "..", "data", "settings.json");
 // コードに書いたデフォルト値
 // （設定ファイルが存在しない初回起動時のみ使用）
 // =============================
-const INITIAL_DEFAULT_URLS: string[] = [
-  "https://example.com",
-  // "https://example.org",
-];
+const INITIAL_DEFAULT_URL = "https://example.com";
 const INITIAL_INTERVAL = "*/30 * * * * *";
 
 async function main() {
@@ -31,7 +28,7 @@ async function main() {
   // 設定ファイルが存在しない初回のみコードの初期値を使用
   const isFirstRun = !require("fs").existsSync(SETTINGS_PATH);
   if (isFirstRun) {
-    settings.defaultUrls = INITIAL_DEFAULT_URLS;
+    settings.defaultUrls = [INITIAL_DEFAULT_URL];
     settings.scrapeInterval = INITIAL_INTERVAL;
     store.save(settings);
     console.log(`[Settings] First run — saved initial settings to ${SETTINGS_PATH}`);
@@ -40,12 +37,14 @@ async function main() {
   }
 
   const service = new ScraperService();
-  service.setDefaultUrls(settings.defaultUrls);
+  // デフォルトURLは常に1件（配列の先頭のみ使用）
+  const defaultUrl = settings.defaultUrls[0] ?? "";
+  service.setDefaultUrl(defaultUrl);
   service.setScrapeInterval(settings.scrapeInterval);
 
   // デフォルトURLをターゲットに登録
-  for (const url of settings.defaultUrls) {
-    service.addTarget(url);
+  if (defaultUrl) {
+    service.addTarget(defaultUrl);
   }
 
   // 保存されていたフィルター設定を復元

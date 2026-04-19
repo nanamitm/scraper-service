@@ -138,11 +138,12 @@
     <div id="pane-settings" class="pane hidden">
       <div class="card">
         <div class="card-title" style="margin-bottom:4px">デフォルトURL</div>
-        <div class="card-desc">起動時に自動登録されるURLを管理します。変更は settings.json に保存されます。</div>
-        <div id="default-urls-list" style="margin-bottom:10px"></div>
-        <div class="row">
-          <input id="new-default-url" type="text" placeholder="https://example.com" onkeydown="if(event.key==='Enter')addDefaultUrl()" />
-          <button class="btn btn-primary" onclick="addDefaultUrl()">追加</button>
+        <div class="card-desc">起動時に自動登録されるURLです。<code>/api/defaults/latest</code> で取得されます。変更は settings.json に保存されます。</div>
+        <div class="field">
+          <div class="row">
+            <input id="default-url-input" type="text" placeholder="https://example.com" onkeydown="if(event.key==='Enter')saveDefaultUrl()" />
+            <button class="btn btn-primary" onclick="saveDefaultUrl()">保存</button>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -541,52 +542,17 @@ async function loadSettings() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     var data = await r.json();
     if (!data.success) throw new Error(data.error);
-    renderDefaultUrls(data.data.defaultUrls);
+    document.getElementById('default-url-input').value = data.data.defaultUrl || '';
     document.getElementById('interval-input').value = data.data.scrapeInterval;
   } catch(e) {
     toast('設定の読み込みに失敗しました: ' + e.message, true);
   }
 }
 
-function renderDefaultUrls(urls) {
-  var el = document.getElementById('default-urls-list');
-  if (!urls || urls.length === 0) {
-    el.innerHTML = '<div style="font-size:13px;color:#bbb;padding:4px 0">デフォルトURLが登録されていません</div>';
-    return;
-  }
-  el.innerHTML = urls.map(function(url) {
-    var safe = url.replace(/'/g, '');
-    return '<div class="url-item">' +
-      '<span>' + url + '</span>' +
-      '<button class="btn btn-sm btn-danger" onclick="removeDefaultUrl(\'' + safe + '\')">削除</button>' +
-    '</div>';
-  }).join('');
-}
-
-async function addDefaultUrl() {
-  var url = v('new-default-url');
+async function saveDefaultUrl() {
+  var url = v('default-url-input');
   if (!url) { alert('URLを入力してください'); return; }
-  try {
-    var r = await fetch('/api/settings');
-    var current = await r.json();
-    var urls = (current.success && current.data.defaultUrls) ? current.data.defaultUrls.slice() : [];
-    if (urls.indexOf(url) !== -1) { toast('すでに登録済みのURLです', true); return; }
-    urls.push(url);
-    await saveSettings({ defaultUrls: urls });
-    document.getElementById('new-default-url').value = '';
-  } catch(e) { toast('追加に失敗しました', true); }
-}
-
-async function removeDefaultUrl(url) {
-  if (!confirm(url + '\nをデフォルトURLから削除しますか？')) return;
-  try {
-    var r = await fetch('/api/settings');
-    var current = await r.json();
-    var urls = (current.success && current.data.defaultUrls)
-      ? current.data.defaultUrls.filter(function(u) { return u !== url; })
-      : [];
-    await saveSettings({ defaultUrls: urls });
-  } catch(e) { toast('削除に失敗しました', true); }
+  await saveSettings({ defaultUrl: url });
 }
 
 async function saveInterval() {
@@ -612,7 +578,7 @@ async function saveSettings(patch) {
       '<div class="res-body">' + escapeHtml(JSON.stringify(data, null, 2)) + '</div>';
     if (data.success) {
       toast('設定を保存しました');
-      renderDefaultUrls(data.data.defaultUrls);
+      document.getElementById('default-url-input').value = data.data.defaultUrl || '';
       document.getElementById('interval-input').value = data.data.scrapeInterval;
     } else {
       toast(data.error || '保存に失敗しました', true);

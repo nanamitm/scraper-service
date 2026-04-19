@@ -8,37 +8,17 @@ const MAX_HTML_BYTES = 512 * 1024; // 512KB
 
 export class ScraperService extends EventEmitter {
   private targets: Map<string, ScrapedTarget> = new Map();
-  private defaultUrls: string[] = [];
+  private defaultUrl: string = "";
   private scrapeInterval: string = "*/30 * * * * *";
 
-  // ── デフォルトURL ──────────────────────────────────
+  // ── デフォルトURL（常に1件）──────────────────────────
 
-  setDefaultUrls(urls: string[]): void {
-    this.defaultUrls = [...urls];
+  getDefaultUrl(): string {
+    return this.defaultUrl;
   }
 
-  getDefaultUrls(): string[] {
-    return this.defaultUrls;
-  }
-
-  /**
-   * デフォルトURLを追加し、ターゲットにも登録する
-   */
-  addDefaultUrl(url: string): void {
-    if (!this.defaultUrls.includes(url)) {
-      this.defaultUrls.push(url);
-    }
-    this.addTarget(url);
-  }
-
-  /**
-   * デフォルトURLを削除する（ターゲット自体は残す）
-   */
-  removeDefaultUrl(url: string): boolean {
-    const idx = this.defaultUrls.indexOf(url);
-    if (idx === -1) return false;
-    this.defaultUrls.splice(idx, 1);
-    return true;
+  setDefaultUrl(url: string): void {
+    this.defaultUrl = url;
   }
 
   // ── スクレイピング間隔 ──────────────────────────────
@@ -122,6 +102,10 @@ export class ScraperService extends EventEmitter {
       ...(t.filter !== undefined && { filter: t.filter }),
       ...(t.filterReplace !== undefined && { filterReplace: t.filterReplace }),
     }));
+  }
+
+  isDefaultUrl(url: string): boolean {
+    return this.defaultUrl === url;
   }
 
   removeTarget(id: string): boolean {
