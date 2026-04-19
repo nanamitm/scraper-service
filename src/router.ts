@@ -176,12 +176,6 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
 
   // 設定取得
   router.get("/settings", (_req: Request, res: Response) => {
-    // 設定をファイルに永続化
-    store.save({
-      defaultUrls: service.getDefaultUrls(),
-      scrapeInterval: service.getScrapeInterval(),
-    });
-
     const body: ApiResponse<{ defaultUrls: string[]; scrapeInterval: string }> = {
       success: true,
       data: {
