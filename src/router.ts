@@ -221,27 +221,20 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
       scrapeInterval?: string;
     };
 
-    // デフォルトURL更新（1件のみ）
+    // デフォルトURL更新（登録済みターゲットから選択）
     if (defaultUrl !== undefined) {
       if (typeof defaultUrl !== "string" || !defaultUrl) {
         const body: ApiResponse<never> = { success: false, error: '"defaultUrl" must be a non-empty string' };
         res.status(400).json(body);
         return;
       }
-      const urlError = validateUrl(defaultUrl);
-      if (urlError) {
-        const body: ApiResponse<never> = { success: false, error: urlError };
-        res.status(400).json(body);
-        return;
-      }
-      const dnsError = await validateUrlDns(defaultUrl);
-      if (dnsError) {
-        const body: ApiResponse<never> = { success: false, error: dnsError };
+      const exists = service.getAllTargets().some((t) => t.url === defaultUrl);
+      if (!exists) {
+        const body: ApiResponse<never> = { success: false, error: "指定されたURLは登録済みターゲットに存在しません" };
         res.status(400).json(body);
         return;
       }
       service.setDefaultUrl(defaultUrl);
-      service.addTarget(defaultUrl);
     }
 
     // スクレイピング間隔更新

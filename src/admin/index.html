@@ -138,13 +138,13 @@
     <div id="pane-settings" class="pane hidden">
       <div class="card">
         <div class="card-title" style="margin-bottom:4px">デフォルトURL</div>
-        <div class="card-desc">起動時に自動登録されるURLです。<code>/api/defaults/latest</code> で取得されます。変更は settings.json に保存されます。</div>
+        <div class="card-desc">登録済みターゲットの中から <code>/api/defaults/latest</code> で取得するURLを選択します。変更は settings.json に保存されます。</div>
         <div class="field">
-          <div class="row">
-            <input id="default-url-input" type="text" placeholder="https://example.com" onkeydown="if(event.key==='Enter')saveDefaultUrl()" />
-            <button class="btn btn-primary" onclick="saveDefaultUrl()">保存</button>
-          </div>
+          <select id="default-url-select">
+            <option value="">-- ターゲットを選択してください --</option>
+          </select>
         </div>
+        <button class="btn btn-primary" onclick="saveDefaultUrl()">保存</button>
       </div>
       <div class="card">
         <div class="card-title" style="margin-bottom:4px">スクレイピング間隔</div>
@@ -456,7 +456,7 @@ async function quickDelete(id) {
   try {
     var r = await fetch('/api/targets/' + id, { method: 'DELETE' });
     var data = await r.json();
-    if (data.success) { toast('削除しました'); loadDashboard(); }
+    if (data.success) { toast('削除しました'); loadDashboard(); loadDefaultUrlTargets(); }
     else toast(data.error || '削除に失敗しました', true);
   } catch(e) { toast('削除に失敗しました', true); }
 }
@@ -500,7 +500,7 @@ async function reqAdd() {
   var url = v('add-url');
   if (!url) { alert('URLを入力してください'); return; }
   var res = await apiReq('targets-add', 'POST', '/api/targets', { url: url });
-  if (res.data && res.data.success) { toast('登録しました'); loadDashboard(); }
+  if (res.data && res.data.success) { toast('登録しました'); loadDashboard(); loadDefaultUrlTargets(); }
   else if (res.data) toast(res.data.error || '登録に失敗しました', true);
 }
 
@@ -509,7 +509,7 @@ async function reqDelete() {
   if (!id) { alert('IDを入力してください'); return; }
   if (!confirm('このターゲットを削除しますか？')) return;
   var res = await apiReq('targets-delete', 'DELETE', '/api/targets/' + id);
-  if (res.data && res.data.success) { toast('削除しました'); loadDashboard(); }
+  if (res.data && res.data.success) { toast('削除しました'); loadDashboard(); loadDefaultUrlTargets(); }
   else if (res.data) toast(res.data.error || '削除に失敗しました', true);
 }
 
@@ -538,20 +538,39 @@ async function reqLatest() {
 
 async function loadSettings() {
   try {
+    await loadDefaultUrlTargets();
     var r = await fetch('/api/settings');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     var data = await r.json();
     if (!data.success) throw new Error(data.error);
-    document.getElementById('default-url-input').value = data.data.defaultUrl || '';
+    var sel = document.getElementById('default-url-select');
+    if (sel) sel.value = data.data.defaultUrl || '';
     document.getElementById('interval-input').value = data.data.scrapeInterval;
   } catch(e) {
     toast('設定の読み込みに失敗しました: ' + e.message, true);
   }
 }
 
+async function loadDefaultUrlTargets() {
+  var sel = document.getElementById('default-url-select');
+  try {
+    var r = await fetch('/api/targets');
+    var data = await r.json();
+    var targets = (data.success && data.data) ? data.data : [];
+    var current = sel ? sel.value : '';
+    sel.innerHTML = '<option value="">-- ターゲットを選択してください --</option>' +
+      targets.map(function(t) {
+        return '<option value="' + escapeHtml(t.url) + '">' + t.url + '</option>';
+      }).join('');
+    if (current) sel.value = current;
+  } catch(e) {
+    sel.innerHTML = '<option value="">読み込みに失敗しました</option>';
+  }
+}
+
 async function saveDefaultUrl() {
-  var url = v('default-url-input');
-  if (!url) { alert('URLを入力してください'); return; }
+  var url = v('default-url-select');
+  if (!url) { alert('URLを選択してください'); return; }
   await saveSettings({ defaultUrl: url });
 }
 
@@ -578,7 +597,8 @@ async function saveSettings(patch) {
       '<div class="res-body">' + escapeHtml(JSON.stringify(data, null, 2)) + '</div>';
     if (data.success) {
       toast('設定を保存しました');
-      document.getElementById('default-url-input').value = data.data.defaultUrl || '';
+      var sel = document.getElementById('default-url-select');
+      if (sel) sel.value = data.data.defaultUrl || '';
       document.getElementById('interval-input').value = data.data.scrapeInterval;
     } else {
       toast(data.error || '保存に失敗しました', true);
