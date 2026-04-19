@@ -97,7 +97,7 @@
     <div class="sidebar-label">ダッシュボード</div>
     <button class="nav-btn active" data-pane="dashboard" onclick="showPane('dashboard', this)">概要</button>
     <div class="sidebar-label">設定</div>
-    <button class="nav-btn" data-pane="settings" onclick="showPane('settings', this)">デフォルトURL・更新間隔</button>
+    <button class="nav-btn" data-pane="settings" onclick="showPane('settings', this)">スクレイピング間隔</button>
     <div class="sidebar-label">ターゲット管理</div>
     <button class="nav-btn" data-pane="targets-list" onclick="showPane('targets-list', this)"><span class="method m-get">GET</span>/api/targets</button>
     <button class="nav-btn" data-pane="targets-add" onclick="showPane('targets-add', this)"><span class="method m-post">POST</span>/api/targets</button>
@@ -136,16 +136,6 @@
 
     <!-- 設定 -->
     <div id="pane-settings" class="pane hidden">
-      <div class="card">
-        <div class="card-title" style="margin-bottom:4px">デフォルトURL</div>
-        <div class="card-desc">登録済みターゲットの中から <code>/api/defaults/latest</code> で取得するURLを選択します。変更は settings.json に保存されます。</div>
-        <div class="field">
-          <select id="default-url-select">
-            <option value="">-- ターゲットを選択してください --</option>
-          </select>
-        </div>
-        <button class="btn btn-primary" onclick="saveDefaultUrl()">保存</button>
-      </div>
       <div class="card">
         <div class="card-title" style="margin-bottom:4px">スクレイピング間隔</div>
         <div class="card-desc">cron式で指定します。保存後すぐにcronが再起動されます。</div>
@@ -422,16 +412,18 @@ async function loadDashboard() {
     document.getElementById('stat-err').textContent = targets.filter(function(t) { return t.lastScrapedAt && t.resultCount === 0; }).length;
 
     wrap.innerHTML = '<table>' +
-      '<thead><tr><th>URL</th><th>ID</th><th>初回取得日時</th><th>最終取得日時</th><th>取得回数</th><th>状態</th><th>操作</th></tr></thead><tbody>' +
+      '<thead><tr><th style="width:40px;text-align:center">既定</th><th>URL</th><th>ID</th><th>初回取得日時</th><th>最終取得日時</th><th>取得回数</th><th>状態</th><th>操作</th></tr></thead><tbody>' +
       targets.map(function(t) {
         var createdAt = t.createdAt ? new Date(t.createdAt).toLocaleString() : '-';
         var lastAt = t.lastScrapedAt ? new Date(t.lastScrapedAt).toLocaleString() : '未取得';
         var dotClass = !t.lastScrapedAt ? 'dot-none' : (t.resultCount > 0 ? 'dot-ok' : 'dot-err');
-        var defBadge = t.isDefault ? '<span class="tag tag-default">デフォルト</span>' : '';
         var filterBadge = t.filter ? '<span class="tag tag-filter" title="' + escapeHtml(t.filter) + '">🔍 フィルター</span>' : '';
         var eid = t.id.replace(/'/g, '');
+        var eurl = t.url.replace(/'/g, '');
+        var checked = t.isDefault ? ' checked' : '';
         return '<tr>' +
-          '<td class="url-cell">' + defBadge + filterBadge + t.url + '</td>' +
+          '<td style="text-align:center"><input type="radio" name="default-url" value="' + escapeHtml(t.url) + '"' + checked + ' onchange="setDefaultUrl(\'' + eurl + '\')" style="width:auto;cursor:pointer" title="デフォルトに設定"></td>' +
+          '<td class="url-cell">' + filterBadge + t.url + '</td>' +
           '<td class="id-cell" title="' + t.id + '">' + t.id.slice(0,8) + '…</td>' +
           '<td style="font-size:12px;color:#888">' + createdAt + '</td>' +
           '<td style="font-size:12px;color:#888">' + lastAt + '</td>' +
@@ -451,12 +443,32 @@ async function loadDashboard() {
   }
 }
 
+async function setDefaultUrl(url) {
+  try {
+    var r = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ defaultUrl: url })
+    });
+    var data = await r.json();
+    if (data.success) {
+      toast('デフォルトURLを変更しました');
+    } else {
+      toast(data.error || '変更に失敗しました', true);
+      loadDashboard(); // ラジオボタンを元に戻す
+    }
+  } catch(e) {
+    toast('変更に失敗しました', true);
+    loadDashboard();
+  }
+}
+
 async function quickDelete(id) {
   if (!confirm('このターゲットを削除しますか？')) return;
   try {
     var r = await fetch('/api/targets/' + id, { method: 'DELETE' });
     var data = await r.json();
-    if (data.success) { toast('削除しました'); loadDashboard(); loadDefaultUrlTargets(); }
+    if (data.success) { toast('削除しました'); loadDashboard(); }
     else toast(data.error || '削除に失敗しました', true);
   } catch(e) { toast('削除に失敗しました', true); }
 }
@@ -500,7 +512,7 @@ async function reqAdd() {
   var url = v('add-url');
   if (!url) { alert('URLを入力してください'); return; }
   var res = await apiReq('targets-add', 'POST', '/api/targets', { url: url });
-  if (res.data && res.data.success) { toast('登録しました'); loadDashboard(); loadDefaultUrlTargets(); }
+  if (res.data && res.data.success) { toast('登録しました'); loadDashboard(); }
   else if (res.data) toast(res.data.error || '登録に失敗しました', true);
 }
 
@@ -509,7 +521,7 @@ async function reqDelete() {
   if (!id) { alert('IDを入力してください'); return; }
   if (!confirm('このターゲットを削除しますか？')) return;
   var res = await apiReq('targets-delete', 'DELETE', '/api/targets/' + id);
-  if (res.data && res.data.success) { toast('削除しました'); loadDashboard(); loadDefaultUrlTargets(); }
+  if (res.data && res.data.success) { toast('削除しました'); loadDashboard(); }
   else if (res.data) toast(res.data.error || '削除に失敗しました', true);
 }
 
@@ -538,40 +550,14 @@ async function reqLatest() {
 
 async function loadSettings() {
   try {
-    await loadDefaultUrlTargets();
     var r = await fetch('/api/settings');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     var data = await r.json();
     if (!data.success) throw new Error(data.error);
-    var sel = document.getElementById('default-url-select');
-    if (sel) sel.value = data.data.defaultUrl || '';
     document.getElementById('interval-input').value = data.data.scrapeInterval;
   } catch(e) {
     toast('設定の読み込みに失敗しました: ' + e.message, true);
   }
-}
-
-async function loadDefaultUrlTargets() {
-  var sel = document.getElementById('default-url-select');
-  try {
-    var r = await fetch('/api/targets');
-    var data = await r.json();
-    var targets = (data.success && data.data) ? data.data : [];
-    var current = sel ? sel.value : '';
-    sel.innerHTML = '<option value="">-- ターゲットを選択してください --</option>' +
-      targets.map(function(t) {
-        return '<option value="' + escapeHtml(t.url) + '">' + t.url + '</option>';
-      }).join('');
-    if (current) sel.value = current;
-  } catch(e) {
-    sel.innerHTML = '<option value="">読み込みに失敗しました</option>';
-  }
-}
-
-async function saveDefaultUrl() {
-  var url = v('default-url-select');
-  if (!url) { alert('URLを選択してください'); return; }
-  await saveSettings({ defaultUrl: url });
 }
 
 async function saveInterval() {
@@ -597,8 +583,6 @@ async function saveSettings(patch) {
       '<div class="res-body">' + escapeHtml(JSON.stringify(data, null, 2)) + '</div>';
     if (data.success) {
       toast('設定を保存しました');
-      var sel = document.getElementById('default-url-select');
-      if (sel) sel.value = data.data.defaultUrl || '';
       document.getElementById('interval-input').value = data.data.scrapeInterval;
     } else {
       toast(data.error || '保存に失敗しました', true);
