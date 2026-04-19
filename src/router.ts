@@ -239,6 +239,9 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
       restartCron();
     }
 
+    // 設定を永続化
+    persistSettings(service, store);
+
     const body: ApiResponse<{ defaultUrls: string[]; scrapeInterval: string }> = {
       success: true,
       data: {
