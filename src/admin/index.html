@@ -420,8 +420,9 @@ async function loadDashboard() {
     document.getElementById('stat-err').textContent = targets.filter(function(t) { return t.lastScrapedAt && t.resultCount === 0; }).length;
 
     wrap.innerHTML = '<table>' +
-      '<thead><tr><th>URL</th><th>ID</th><th>最終取得</th><th>件数</th><th>状態</th><th>操作</th></tr></thead><tbody>' +
+      '<thead><tr><th>URL</th><th>ID</th><th>初回取得日時</th><th>最終取得日時</th><th>取得回数</th><th>状態</th><th>操作</th></tr></thead><tbody>' +
       targets.map(function(t) {
+        var createdAt = t.createdAt ? new Date(t.createdAt).toLocaleString() : '-';
         var lastAt = t.lastScrapedAt ? new Date(t.lastScrapedAt).toLocaleString() : '未取得';
         var dotClass = !t.lastScrapedAt ? 'dot-none' : (t.resultCount > 0 ? 'dot-ok' : 'dot-err');
         var defBadge = t.isDefault ? '<span class="tag tag-default">デフォルト</span>' : '';
@@ -430,8 +431,9 @@ async function loadDashboard() {
         return '<tr>' +
           '<td class="url-cell">' + defBadge + filterBadge + t.url + '</td>' +
           '<td class="id-cell" title="' + t.id + '">' + t.id.slice(0,8) + '…</td>' +
+          '<td style="font-size:12px;color:#888">' + createdAt + '</td>' +
           '<td style="font-size:12px;color:#888">' + lastAt + '</td>' +
-          '<td>' + t.resultCount + '</td>' +
+          '<td style="text-align:center">' + t.resultCount + '</td>' +
           '<td><span class="dot ' + dotClass + '"></span></td>' +
           '<td><div class="actions">' +
             '<button class="btn btn-sm" onclick="fillAndShowPane(\'scrape-now\',\'scrape-id\',\'' + eid + '\')">今すぐ実行</button>' +
