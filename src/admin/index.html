@@ -465,6 +465,35 @@ var REFRESH_SEC = 30;
 var remaining = REFRESH_SEC;
 var timerInterval = null;
 
+/** cron式から更新間隔（秒）を推定する */
+function parseCronToSeconds(expr) {
+  var parts = expr.trim().split(/\s+/);
+  if (parts.length === 6) {
+    // 6フィールド（秒単位）: "*/30 * * * * *"
+    var m = parts[0].match(/^\*\/(\d+)$/);
+    if (m) return parseInt(m[1], 10);
+    if (parts[0] === '*') return 1;
+    var n = parseInt(parts[0], 10);
+    if (!isNaN(n)) return n;
+  } else if (parts.length === 5) {
+    // 5フィールド（分単位）: "*/5 * * * *"
+    var m = parts[0].match(/^\*\/(\d+)$/);
+    if (m) return parseInt(m[1], 10) * 60;
+    if (parts[0] === '*') return 60;
+    var n = parseInt(parts[0], 10);
+    if (!isNaN(n)) return n * 60;
+  }
+  return 30; // パース失敗時のデフォルト
+}
+
+/** スクレイピング間隔に合わせてダッシュボードの自動更新間隔を更新 */
+function syncRefreshTimer(scrapeInterval) {
+  var sec = parseCronToSeconds(scrapeInterval);
+  REFRESH_SEC = Math.max(sec, 3); // 最低3秒
+  remaining = REFRESH_SEC;
+  updateCountdown();
+}
+
 function updateCountdown() {
   var el = document.getElementById('countdown');
   if (el) el.textContent = remaining + '秒後に自動更新';
@@ -544,6 +573,7 @@ async function loadSettings() {
     if (!data.success) throw new Error(data.error);
     renderDefaultUrls(data.data.defaultUrls);
     document.getElementById('interval-input').value = data.data.scrapeInterval;
+    syncRefreshTimer(data.data.scrapeInterval);
   } catch(e) {
     toast('設定の読み込みに失敗しました: ' + e.message, true);
   }
@@ -615,6 +645,8 @@ async function saveSettings(patch) {
       toast('設定を保存しました');
       renderDefaultUrls(data.data.defaultUrls);
       document.getElementById('interval-input').value = data.data.scrapeInterval;
+      syncRefreshTimer(data.data.scrapeInterval);
+      resetTimer();
     } else {
       toast(data.error || '保存に失敗しました', true);
     }
