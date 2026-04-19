@@ -42,21 +42,24 @@ async function main() {
   service.setDefaultUrl(defaultUrl);
   service.setScrapeInterval(settings.scrapeInterval);
 
-  // デフォルトURLをターゲットに登録
-  if (defaultUrl) {
-    service.addTarget(defaultUrl);
-  }
-
-  // 保存されていたフィルター設定を復元
+  // 保存されていた全ターゲットを復元（フィルター設定を含む）
   if (settings.targets && settings.targets.length > 0) {
     for (const ts of settings.targets) {
-      if (ts.filter === undefined) continue;
-      const target = service.getAllTargets().find((t) => t.url === ts.url);
-      if (target) {
+      // URLを登録（addTargetは重複を無視して既存ターゲットを返す）
+      const target = service.addTarget(ts.url);
+      // フィルター設定があれば復元
+      if (ts.filter !== undefined) {
         service.setFilter(target.id, ts.filter, ts.filterReplace);
-        console.log(`[Settings] Filter restored for ${ts.url}: /${ts.filter}/`);
+        console.log(`[Settings] Restored ${ts.url} (filter: /${ts.filter}/)`);
+      } else {
+        console.log(`[Settings] Restored ${ts.url}`);
       }
     }
+  }
+
+  // デフォルトURLが targets に含まれていない場合（初回起動等）は単独で登録
+  if (defaultUrl && !service.getAllTargets().find((t) => t.url === defaultUrl)) {
+    service.addTarget(defaultUrl);
   }
 
   // cronタスクを管理（動的に再起動できるよう変数で保持）
