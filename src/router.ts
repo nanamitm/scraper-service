@@ -142,7 +142,7 @@ export function createPublicRouter(service: ScraperService): Router {
     }
 
     const raw = service.getLatestResult(target.id);
-    if (!raw) {
+    if (!raw?.success) {
       const body: ApiResponse<never> = {
         success: false,
         error: "No results yet",
@@ -151,8 +151,7 @@ export function createPublicRouter(service: ScraperService): Router {
       return;
     }
 
-    const body: ApiResponse<ReturnType<typeof omitRawHtml>> = { success: true, data: omitRawHtml(raw) };
-    res.json(body);
+    res.type("text/plain").send(raw.html);
   });
 
   return router;
