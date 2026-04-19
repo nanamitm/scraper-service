@@ -31,8 +31,9 @@
     .card-desc { font-size: 13px; color: #999; margin-bottom: 1rem; }
     .field { margin-bottom: 10px; }
     label { display: block; font-size: 12px; color: #777; margin-bottom: 3px; }
-    input { width: 100%; padding: 8px 10px; border: 0.5px solid #ccc; border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff; color: inherit; outline: none; }
-    input:focus { border-color: #1e1e2e; box-shadow: 0 0 0 2px rgba(30,30,46,0.1); }
+    input, select { width: 100%; padding: 8px 10px; border: 0.5px solid #ccc; border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff; color: inherit; outline: none; }
+    input:focus, select:focus { border-color: #1e1e2e; box-shadow: 0 0 0 2px rgba(30,30,46,0.1); }
+    select { cursor: pointer; }
     .row { display: flex; gap: 8px; }
     .row input { flex: 1; }
     .btn { padding: 8px 14px; border-radius: 6px; border: 0.5px solid #ccc; background: #fff; cursor: pointer; font-size: 13px; font-family: inherit; color: inherit; white-space: nowrap; }
@@ -245,11 +246,10 @@
         <div class="card-title" style="margin-bottom:4px"><span class="tag tag-filter">FILTER</span>フィルター設定・テスト</div>
         <div class="card-desc">ターゲットごとに正規表現フィルターを設定します。スクレイピング時にマッチした文字列が <code>matches</code> に保存されます。</div>
         <div class="field">
-          <label>ターゲットID（必須）</label>
-          <div class="row">
-            <input id="filter-id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" oninput="onFilterIdInput()" />
-            <button class="btn" onclick="loadCurrentFilter()">読み込み</button>
-          </div>
+          <label>ターゲット</label>
+          <select id="filter-id" onchange="onFilterIdChange()">
+            <option value="">-- ターゲットを選択してください --</option>
+          </select>
         </div>
         <div class="field">
           <label>現在のフィルター</label>
@@ -388,6 +388,7 @@ function showPane(name, btn) {
   if (btn) btn.classList.add('active');
   if (name === 'dashboard') loadDashboard();
   if (name === 'settings') loadSettings();
+  if (name === 'filter') loadFilterTargets();
 }
 
 function fillAndShowPane(pane, inputId, value) {
@@ -655,16 +656,41 @@ async function saveSettings(patch) {
 
 // ── フィルター管理 ────────────────────────────────────
 
+async function loadFilterTargets(selectedId) {
+  var sel = document.getElementById('filter-id');
+  var current = selectedId || sel.value;
+  try {
+    var r = await fetch('/api/targets');
+    var data = await r.json();
+    var targets = (data.success && data.data) ? data.data : [];
+    sel.innerHTML = '<option value="">-- ターゲットを選択してください --</option>' +
+      targets.map(function(t) {
+        var label = t.url + '  [' + t.id.slice(0, 8) + '…]';
+        var selected = t.id === current ? ' selected' : '';
+        return '<option value="' + t.id + '"' + selected + '>' + label + '</option>';
+      }).join('');
+    if (current && sel.value === current) {
+      loadCurrentFilter();
+    } else {
+      document.getElementById('current-filter-display').innerHTML = '<span class="none">未設定</span>';
+      clearTestResult();
+    }
+  } catch(e) {
+    sel.innerHTML = '<option value="">読み込みに失敗しました</option>';
+  }
+}
+
 function openFilter(id) {
   var btn = document.querySelector('[data-pane="filter"]');
   showPane('filter', btn);
-  document.getElementById('filter-id').value = id;
-  loadCurrentFilter();
+  loadFilterTargets(id);
 }
 
-function onFilterIdInput() {
+function onFilterIdChange() {
   document.getElementById('current-filter-display').innerHTML = '<span class="none">未設定</span>';
   clearTestResult();
+  var id = v('filter-id');
+  if (id) loadCurrentFilter();
 }
 
 async function loadCurrentFilter() {
