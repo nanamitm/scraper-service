@@ -14,6 +14,7 @@ export interface ScrapedTarget {
   url: string;
   createdAt: string;
   lastScrapedAt?: string;
+  scrapeCount: number;      // アクセス総数（結果の保持上限とは無関係）
   results: ScrapeResult[];
   filter?: string;          // 正規表現フィルター（オプション）
   filterReplace?: string;   // 置換文字列（filterと組み合わせて使用）

@@ -61,6 +61,7 @@ export class ScraperService {
       id: randomUUID(),
       url,
       createdAt: new Date().toISOString(),
+      scrapeCount: 0,
       results: [],
       ...(filter !== undefined && { filter }),
       ...(filterReplace !== undefined && { filterReplace }),
@@ -211,6 +212,7 @@ export class ScraperService {
     if (target.results.length > MAX_RESULTS_PER_TARGET) {
       target.results.shift();
     }
+    target.scrapeCount++;
     target.lastScrapedAt = result.scrapedAt;
 
     const status = result.success

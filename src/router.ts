@@ -314,6 +314,7 @@ export function createAdminRouter(service: ScraperService, restartCron: () => vo
       url: t.url,
       createdAt: t.createdAt,
       lastScrapedAt: t.lastScrapedAt,
+      scrapeCount: t.scrapeCount,
       resultCount: t.results.length,
       isDefault: service.getDefaultUrls().includes(t.url),
     }));
