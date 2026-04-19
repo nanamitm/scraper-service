@@ -79,6 +79,7 @@ function omitRawHtml(result: ScrapeResult) {
   return rest;
 }
 
+
 /**
  * 公開API用ルーター（port 3000）
  * 結果の取得のみ。/api/targets は管理画面のみ。
@@ -103,15 +104,13 @@ export function createPublicRouter(service: ScraperService): Router {
       return;
     }
 
-    const results = defaultUrls.map((url) => {
+    const texts = defaultUrls.map((url) => {
       const target = service.getAllTargets().find((t) => t.url === url);
       const raw = target ? service.getLatestResult(target.id) ?? null : null;
-      const result = raw ? omitRawHtml(raw) : null;
-      return { url, result };
-    });
+      return raw?.success ? raw.html : "";
+    }).filter(Boolean);
 
-    const body: ApiResponse<typeof results> = { success: true, data: results };
-    res.json(body);
+    res.type("text/plain").send(texts.join("\n\n"));
   });
 
   // URLで最新スクレイピング結果を取得（IDなし）

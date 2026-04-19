@@ -124,7 +124,7 @@ function render(id, status, data) {
       '<span class="status ' + (ok ? 's-ok' : 's-err') + '">' + status + '</span>' +
       '<span>' + new Date().toLocaleTimeString() + '</span>' +
     '</div>' +
-    '<div class="res-body">' + escapeHtml(JSON.stringify(data, null, 2)) + '</div>';
+    '<div class="res-body">' + escapeHtml(typeof data === 'string' ? data : JSON.stringify(data, null, 2)) + '</div>';
 }
 
 async function req(id, method, path, body) {
@@ -132,7 +132,9 @@ async function req(id, method, path, body) {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body) opts.body = JSON.stringify(body);
     const r = await fetch(path, opts);
-    render(id, r.status, await r.json());
+    const ct = r.headers.get('Content-Type') || '';
+    const data = ct.includes('text/plain') ? await r.text() : await r.json();
+    render(id, r.status, data);
   } catch(e) {
     render(id, 0, { error: e.message });
   }
